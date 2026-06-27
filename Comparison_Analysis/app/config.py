@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     environment: str = "development"
     comparison_port: int = 8002
 
-    model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+    model_config = {"env_file": "../.env", "env_file_encoding": "utf-8"}
 
 
 settings = Settings()
