@@ -1,0 +1,37 @@
+from pydantic_settings import BaseSettings
+from typing import List
+
+
+class Settings(BaseSettings):
+    supabase_url: str
+    supabase_anon_key: str
+    supabase_service_role_key: str
+    database_url: str
+
+    qdrant_url: str
+    qdrant_api_key: str
+    qdrant_collection: str = "cars_ads"
+
+    jwt_secret: str
+    jwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 60
+    refresh_token_expire_days: int = 30
+
+    gemini_api_key: str
+    tavily_api_key: str
+
+    supabase_storage_bucket: str = "car-images"
+
+    redis_url: str | None = None
+
+    environment: str = "development"
+    allowed_origins: str = "http://localhost:3000"
+
+    @property
+    def allowed_origins_list(self) -> List[str]:
+        return [o.strip() for o in self.allowed_origins.split(",")]
+
+    model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+
+
+settings = Settings()
