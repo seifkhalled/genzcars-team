@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cars Marketplace — Multi-Agent Architecture</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --border: #2a2d3a;
+      --text: #e4e6f0;
+      --text-muted: #8b8fa3;
+      --primary: #3b82f6;
+      --accent: #8b5cf6;
+      --green: #22c55e;
+      --amber: #eab308;
+      --red: #ef4444;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      padding: 2rem;
+    }
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    h2 {
+      font-size: 1.25rem;
+      margin: 2rem 0 1rem;
+      color: var(--text);
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    h3 {
+      font-size: 1rem;
+      margin: 1.5rem 0 0.75rem;
+      color: var(--primary);
+    }
+    p { color: var(--text-muted); margin-bottom: 1rem; }
+    .diagram-wrapper {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+      overflow-x: auto;
+    }
+    .diagram-wrapper svg { max-width: 100%; height: auto; }
+
+    /* Node detail cards */
+    .node-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 1rem;
+      margin: 1.5rem 0;
+    }
+    .node-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+      transition: border-color 0.2s;
+    }
+    .node-card:hover { border-color: var(--primary); }
+    .node-card .name {
+      font-weight: 600;
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .node-card .name .tag {
+      font-size: 0.65rem;
+      background: var(--primary);
+      color: #fff;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-weight: 500;
+    }
+    .node-card .desc {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 0.75rem;
+    }
+    .node-card .tools-label {
+      font-size: 0.75rem;
+      color: var(--amber);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-top: 0.5rem;
+    }
+    .node-card .tools {
+      font-size: 0.8rem;
+      color: var(--text);
+      margin-top: 0.25rem;
+    }
+    .node-card .tools li {
+      margin-left: 1rem;
+      margin-bottom: 0.15rem;
+    }
+    .node-card .llm {
+      font-size: 0.75rem;
+      color: var(--green);
+      margin-top: 0.25rem;
+    }
+    .node-card .edges {
+      font-size: 0.75rem;
+      color: var(--accent);
+      margin-top: 0.25rem;
+      font-style: italic;
+    }
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+      margin-bottom: 1.5rem;
+      padding: 1rem;
+      background: var(--surface);
+      border-radius: 10px;
+      border: 1px solid var(--border);
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.8rem;
+    }
+    .legend-item .dot { width: 12px; height: 12px; border-radius: 50%; }
+    .legend-item .line { width: 24px; height: 3px; border-radius: 2px; }
+    .llm-badge {
+      display: inline-block;
+      font-size: 0.65rem;
+      background: rgba(34,197,94,0.15);
+      color: var(--green);
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-weight: 500;
+    }
+    .tool-badge {
+      display: inline-block;
+      font-size: 0.65rem;
+      background: rgba(234,179,8,0.15);
+      color: var(--amber);
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-weight: 500;
+    }
+    .tool-matrix {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+      margin: 1rem 0;
+    }
+    .tool-matrix th, .tool-matrix td {
+      border: 1px solid var(--border);
+      padding: 0.5rem 0.75rem;
+      text-align: left;
+    }
+    .tool-matrix th {
+      background: var(--surface);
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-size: 0.7rem;
+      letter-spacing: 0.05em;
+    }
+    .tool-matrix td { vertical-align: top; }
+    .tool-matrix .yes { color: var(--green); }
+    .tool-matrix .no { color: var(--text-muted); }
+
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      margin-bottom: 2rem;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <h1>Multi-Agent Architecture</h1>
+  <p class="subtitle">Cars Marketplace Egypt — LangGraph chatbot agent graph with tool calling and data flow</p>
+
+  <div class="legend">
+    <span class="legend-item"><span class="dot" style="background:var(--primary)"></span> Node</span>
+    <span class="legend-item"><span class="line" style="background:var(--green)"></span> Fixed Edge</span>
+    <span class="legend-item"><span class="line" style="background:var(--amber)"></span> Conditional Edge</span>
+    <span class="legend-item"><span class="line" style="background:var(--red)"></span> Entry / Exit</span>
+    <span class="legend-item"><span class="dot" style="background:var(--accent)"></span> LLM Call</span>
+    <span class="legend-item"><span class="dot" style="background:var(--amber)"></span> Tool / DB call</span>
+    <span class="legend-item"><span class="dot" style="background:var(--green)"></span> Web Search</span>
+  </div>
+
+  <!-- ==================================================================== -->
+  <!-- SECTION 1: MULTI-AGENT GRAPH                                         -->
+  <!-- ==================================================================== -->
+  <h2>1. LangGraph Multi-Agent Flow</h2>
+  <p>Nodes route through a cycle: <strong>preference_extractor → router → specialist → responder</strong>. The router classifies intent each turn; specialist nodes return to responder which streams the result.</p>
+
+  <div class="diagram-wrapper">
+    <pre class="mermaid">
+      flowchart TD
+        START(["START"]) -->|"entry point"| PE[preference_extractor]
+
+        PE --> ROUTER[router]
+
+        ROUTER -->|"catalogue_node"| CAT[catalogue_node]
+        ROUTER -->|"advisor_node"| ADV[advisor_node]
+        ROUTER -->|"seller_node"| SELL[seller_node]
+        ROUTER -->|"guide_node"| GUIDE[guide_node]
+        ROUTER -->|"general_node"| GEN[general_node]
+
+        CAT -->|"available"| SN[search_node]
+        CAT -->|"not available"| RN[recommendation_node]
+
+        SN --> RESP[responder_node]
+        RN --> RESP
+        ADV --> RESP
+        SELL --> RESP
+        GUIDE --> RESP
+        GEN --> RESP
+
+        RESP --> END(["END"])
+
+        subgraph ROUTING["🗺️ Router Layer"]
+          ROUTER
+        end
+
+        subgraph PROCESS["⚙️ Specialist Nodes"]
+          CAT
+          ADV
+          SELL
+          GUIDE
+          GEN
+          SN
+          RN
+        end
+
+        subgraph OUTPUT["📤 Output Layer"]
+          RESP
+        end
+
+        style START fill:#dc2626,color:#fff,stroke:none
+        style END fill:#dc2626,color:#fff,stroke:none
+        style PE fill:#3b82f6,color:#fff,stroke:none
+        style ROUTER fill:#8b5cf6,color:#fff,stroke:none
+        style CAT fill:#2563eb,color:#fff,stroke:none
+        style ADV fill:#2563eb,color:#fff,stroke:none
+        style SELL fill:#2563eb,color:#fff,stroke:none
+        style GUIDE fill:#2563eb,color:#fff,stroke:none
+        style GEN fill:#2563eb,color:#fff,stroke:none
+        style SN fill:#059669,color:#fff,stroke:none
+        style RN fill:#059669,color:#fff,stroke:none
+        style RESP fill:#d97706,color:#fff,stroke:none
+    </pre>
+  </div>
+
+  <!-- ==================================================================== -->
+  <!-- SECTION 2: NODE DETAIL CARDS                                         -->
+  <!-- ==================================================================== -->
+  <h2>2. Node Details &amp; Tool Calling</h2>
+
+  <div class="node-grid">
+
+    <!-- preference_extractor -->
+    <div class="node-card">
+      <div class="name">preference_extractor <span class="tag">every turn</span></div>
+      <div class="desc">Extract and merge all car-preference signals from the user's latest message into accumulated UserPreferences. Runs on every turn before routing.</div>
+      <div class="llm"><span class="llm-badge">LLM</span> 1× FallbackLLM.ainvoke() — JSON preference extraction</div>
+      <div class="tools-label">Tool Calls</div>
+      <ul class="tools">
+        <li>format_brand_origins_prompt() — expand country/region mentions to brand lists</li>
+        <li>upsert_user_preferences() — persist to PostgreSQL (fire-and-forget)</li>
+      </ul>
+      <div class="edges">→ router (fixed)</div>
+    </div>
+
+    <!-- router -->
+    <div class="node-card">
+      <div class="name">router <span class="tag">every turn</span></div>
+      <div class="desc">Intent classifier — decides which specialist node should handle the request based on conversation context, preferences, and latest message.</div>
+      <div class="llm"><span class="llm-badge">LLM</span> 1× FallbackLLM.ainvoke() — classify into one of 5 intents</div>
+      <div class="tools-label">Tool Calls</div>
+      <ul class="tools">
+        <li>None (pure LLM classification)</li>
+      </ul>
+      <div class="edges">→ catalogue_node | advisor_node | seller_node | guide_node | general_node (conditional via next_node state)</div>
+    </div>
+
+    <!-- catalogue_node -->
+    <div class="node-card">
+      <div class="name">catalogue_node</div>
+      <div class="desc">Determine if the request is for a specific known car or broad search. If specific, checks database catalogue availability.</div>
+      <div class="llm"><span class="llm-badge">LLM</span> 1× FallbackLLM.ainvoke() — extract specific vs broad request</div>
+      <div class="tools-label">Tool Calls</div>
+      <ul class="tools">
+        <li>format_brand_origins_prompt() — brand origin expansion</li>
+        <li>check_catalogue_availability() — SQL query to count exact-match ads</li>
+      </ul>
+      <div class="edges">→ search_node (available or broad) | recommendation_node (not available)</div>
+    </div>
+
+    <!-- search_node -->
+    <div class="node-card">
+      <div class="name">search_node</div>
+      <div class="desc">Vector-based semantic search against Qdrant. Builds query, enriches with preference filters, evaluates quality, potentially retries broadly.</div>
+      <div class="llm"><span class="llm-badge">LLM</span> 1× ainvoke (query build) + 1× astream (response gen)</div>
+      <div class="tools-label">Tool Calls</div>
+      <ul class="tools">
+        <li>format_expansions_prompt() — expand colloquial car terms</li>
+        <li>embedder.encode() — text → vector embedding</li>
+        <li>qdrant_search.search() — vector search with metadata filters</li>
+        <li>verify_results() — filter to active listings only</li>
+        <li>evaluate_search_quality() — check score thresholds</li>
+        <li>compute_dcg() — rank quality metric</li>
+        <li>merge_dedup_results() — merge two result sets</li>
+        <li>get_ad_images_by_ids() — fetch image URLs from DB</li>
+        <li>get_new_matching_ads() — check for new matches since session start</li>
+      </ul>
+      <div class="edges">→ responder_node (fixed)</div>
+    </div>
+
+    <!-- recommendation_node -->
+    <div class="node-card">
+      <div class="name">recommendation_node</div>
+      <div class="desc">When a specific car is NOT available, find similar alternatives using relaxed search criteria.</div>
+      <div class="llm"><span class="llm-badge">LLM</span> 1× FallbackLLM.astream() — explain alternatives</div>
+      <div class="tools-label">Tool Calls</div>
+      <ul class="tools">
+        <li>embedder.encode() — text → vector embedding</li>
+        <li>qdrant_search.search() — relaxed search (broader year range, same body/budget)</li>
+        <li>verify_results() — filter to active listings</li>
+        <li>get_ad_images_by_ids() — fetch image URLs</li>
+      </ul>
+      <div class="edges">→ responder_node (fixed)</div>
+    </div>
+
+    <!-- advisor_node -->
+    <div class="node-card">
+      <div class="name">advisor_node</div>
+      <div class="desc">Car expert evaluating a specific listing. Answers "is this a good deal?", grounds answers in verified listing data, web search for reliability info.</div>
+      <div class="llm"><span class="llm-badge">LLM</span> 2× ainvoke + 1× astream (main response + relevance + preference refine)</div>
+      <div class="tools-label">Tool Calls</div>
+      <ul class="tools">
+        <li>build_grounding_block() — create verified listing data block</li>
+        <li>validate_response() — hallucination check on price/year</li>
+        <li><span class="tool-badge">WEB</span> web_search.search() — optional reliability/ common issues search</li>
+        <li>embedder.encode() + qdrant_search.search() — find similar cars</li>
+        <li>upsert_user_preferences() — persist refined preferences</li>
+      </ul>
+      <div class="edges">→ responder_node (fixed)</div>
+    </div>
+
+    <!-- seller_node -->
+    <div class="node-card">
+      <div class="name">seller_node</div>
+      <div class="desc">Handle seller requests: pricing a car, listing tips, general selling advice. Market price analysis via Qdrant + optional web market data.</div>
+      <div class="llm"><span class="llm-badge">LLM</span> 1× ainvoke (extract) + 1× astream (pricing/tips response)</div>
+      <div class="tools-label">Tool Calls</div>
+      <ul class="tools">
+        <li>embedder.encode() + qdrant_search.search() — find similar listings for market pricing</li>
+        <li>Price computation: median, min/max, recommended range with km multiplier adjustments</li>
+        <li><span class="tool-badge">WEB</span> web_search.search() — optional market context</li>
+        <li>upsert_user_preferences() — persist seller preferences</li>
+      </ul>
+      <div class="edges">→ responder_node (fixed)</div>
+    </div>
+
+    <!-- guide_node -->
+    <div class="node-card">
+      <div class="name">guide_node</div>
+      <div class="desc">Answer how-to questions about using the website: posting ads, filtering, saving, comparing, contacting sellers, etc.</div>
+      <div class="llm"><span class="llm-badge">LLM</span> 1× ainvoke (topic detect) + 1× astream (guide response)</div>
+      <div class="tools-label">Tool Calls</div>
+      <ul class="tools">
+        <li>format_website_guide() — generate website features reference text</li>
+      </ul>
+      <div class="edges">→ responder_node (fixed)</div>
+    </div>
+
+    <!-- general_node -->
+    <div class="node-card">
+      <div class="name">general_node</div>
+      <div class="desc">General car knowledge, buying advice, market context, greetings, small talk. Optionally performs web search for time-sensitive questions.</div>
+      <div class="llm"><span class="llm-badge">LLM</span> 2× ainvoke (search decision + preference refine) + 1× astream (response)</div>
+      <div class="tools-label">Tool Calls</div>
+      <ul class="tools">
+        <li><span class="tool-badge">WEB</span> web_search.search() — conditional, based on LLM decision</li>
+        <li>upsert_user_preferences() — persist extracted preferences</li>
+      </ul>
+      <div class="edges">→ responder_node (fixed)</div>
+    </div>
+
+    <!-- responder_node -->
+    <div class="node-card">
+      <div class="name">responder_node</div>
+      <div class="desc">Final output node. Streams the accumulated response text as SSE token events and emits structured data events (cars, price_analysis, similar_cars, new_matches).</div>
+      <div class="llm"><span class="llm-badge">LLM</span> None (pure orchestration)</div>
+      <div class="tools-label">Tool Calls</div>
+      <ul class="tools">
+        <li>SSE event emission (queue-based): tokens, cars, similar_cars, price_analysis, new_match, done</li>
+        <li>insert_chat_message() — save message+response to DB</li>
+        <li>upsert_user_preferences() — save preferences with intent history</li>
+      </ul>
+      <div class="edges">→ END (fixed)</div>
+    </div>
+
+  </div>
+
+  <!-- ==================================================================== -->
+  <!-- SECTION 3: TOOL CALLING MATRIX                                       -->
+  <!-- ==================================================================== -->
+  <h2>3. Tool Calling Matrix</h2>
+  <p>Each node's usage of LLM calls, database queries, vector search, and web search.</p>
+
+  <div class="diagram-wrapper">
+    <table class="tool-matrix">
+      <thead>
+        <tr>
+          <th>Node</th>
+          <th>LLM Calls</th>
+          <th>Database (PostgreSQL)</th>
+          <th>Vector Search (Qdrant)</th>
+          <th>Web Search</th>
+          <th>Other Tools</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>preference_extractor</strong></td>
+          <td>1× ainvoke</td>
+          <td>upsert_user_preferences</td>
+          <td class="no">—</td>
+          <td class="no">—</td>
+          <td>format_brand_origins_prompt</td>
+        </tr>
+        <tr>
+          <td><strong>router</strong></td>
+          <td>1× ainvoke</td>
+          <td class="no">—</td>
+          <td class="no">—</td>
+          <td class="no">—</td>
+          <td class="no">—</td>
+        </tr>
+        <tr>
+          <td><strong>catalogue_node</strong></td>
+          <td>1× ainvoke</td>
+          <td>check_catalogue_availability</td>
+          <td class="no">—</td>
+          <td class="no">—</td>
+          <td>format_brand_origins_prompt</td>
+        </tr>
+        <tr>
+          <td><strong>search_node</strong></td>
+          <td>1× ainvoke + 1× astream</td>
+          <td>get_ad_images_by_ids, get_new_matching_ads</td>
+          <td class="yes">Qdrant search (up to 2 attempts)</td>
+          <td class="no">—</td>
+          <td>format_expansions, verify_results, evaluate_quality, compute_dcg, merge_dedup</td>
+        </tr>
+        <tr>
+          <td><strong>recommendation_node</strong></td>
+          <td>1× astream</td>
+          <td>get_ad_images_by_ids</td>
+          <td class="yes">Qdrant search (relaxed)</td>
+          <td class="no">—</td>
+          <td>verify_results</td>
+        </tr>
+        <tr>
+          <td><strong>advisor_node</strong></td>
+          <td>2× ainvoke + 1× astream</td>
+          <td>upsert_user_preferences</td>
+          <td class="yes">Qdrant search (similar cars)</td>
+          <td class="yes">web_search.search</td>
+          <td>build_grounding_block, validate_response (hallucination guard)</td>
+        </tr>
+        <tr>
+          <td><strong>seller_node</strong></td>
+          <td>1× ainvoke + 1× astream</td>
+          <td>upsert_user_preferences</td>
+          <td class="yes">Qdrant search (market analysis)</td>
+          <td class="yes">web_search.search</td>
+          <td>Price computation (median, km multipliers)</td>
+        </tr>
+        <tr>
+          <td><strong>guide_node</strong></td>
+          <td>1× ainvoke + 1× astream</td>
+          <td class="no">—</td>
+          <td class="no">—</td>
+          <td class="no">—</td>
+          <td>format_website_guide</td>
+        </tr>
+        <tr>
+          <td><strong>general_node</strong></td>
+          <td>2× ainvoke + 1× astream</td>
+          <td>upsert_user_preferences</td>
+          <td class="no">—</td>
+          <td class="yes">web_search.search (conditional)</td>
+          <td class="no">—</td>
+        </tr>
+        <tr>
+          <td><strong>responder_node</strong></td>
+          <td class="no">—</td>
+          <td>insert_chat_message, upsert_user_preferences</td>
+          <td class="no">—</td>
+          <td class="no">—</td>
+          <td>SSE streaming, token emission</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ==================================================================== -->
+  <!-- SECTION 4: LLM & FALLBACK CHAIN                                       -->
+  <!-- ==================================================================== -->
+  <h2>4. LLM Fallback Chain</h2>
+  <p>Every LLM call goes through a <strong>3-tier FallbackLLM</strong> class. If Groq fails, it falls back to OpenRouter.</p>
+
+  <div class="diagram-wrapper">
+    <pre class="mermaid">
+      flowchart LR
+        REQ[LLM Request] --> GROQ1["Groq (Primary)
+        ChatGroq
+        openai/gpt-oss-120b"]
+
+        GROQ1 -->|"success"| RES[Response]
+        GROQ1 -->|"error / rate limit"| GROQ2["Groq Failover
+        ChatGroq
+        (backup API key)"]
+
+        GROQ2 -->|"success"| RES
+        GROQ2 -->|"error / rate limit"| OR["OpenRouter
+        Custom HTTP Client
+        nemotron-3-nano-omni
+        3-attempt retry
+        exp backoff"]
+
+        OR -->|"success"| RES
+        OR -->|"all failed"| ERR["Raise Exception"]
+
+        style REQ fill:#3b82f6,color:#fff,stroke:none
+        style RES fill:#22c55e,color:#fff,stroke:none
+        style ERR fill:#ef4444,color:#fff,stroke:none
+        style GROQ1 fill:#1a1d27,stroke:#8b5cf6,color:#e4e6f0
+        style GROQ2 fill:#1a1d27,stroke:#8b5cf6,color:#e4e6f0
+        style OR fill:#1a1d27,stroke:#f59e0b,color:#e4e6f0
+    </pre>
+  </div>
+
+  <!-- ==================================================================== -->
+  <!-- SECTION 5: DFD — DATA FLOW DIAGRAM                                    -->
+  <!-- ==================================================================== -->
+  <h2>5. Data Flow Diagram (DFD)</h2>
+  <p>End-to-end data flow through the chatbot system — from user message to SSE response — showing all external entities, processes, data stores, and data flows.</p>
+
+  <div class="diagram-wrapper">
+    <pre class="mermaid">
+      flowchart TD
+        USER([User Browser])
+
+        subgraph FE["📱 Frontend (Next.js)"]
+          CHAT[ChatInput / VoiceInput]
+          SSE[SSE Handler / useChat]
+          UI[Chat UI Renderer]
+        end
+
+        subgraph BE["🔌 Backend API Gateway (FastAPI :8000)"]
+          PROXY[Proxy Routes
+          POST /api/v1/chat/message]
+        end
+
+        subgraph CB["🤖 Chatbot Service (FastAPI :8001)"]
+          INVOKE[POST /message]
+          GRAPH[LangGraph
+          StateGraph]
+
+          subgraph NODES["Processing Nodes"]
+            PE[preference_extractor]
+            RTR[router]
+            CAT[catalogue_node]
+            SN[search_node]
+            RN[recommendation_node]
+            ADV[advisor_node]
+            SELL[seller_node]
+            GUIDE[guide_node]
+            GEN[general_node]
+            RESP[responder_node]
+          end
+
+          QUE[SSE Queue
+          asyncio.Queue]
+        end
+
+        subgraph DS["💾 Data Stores"]
+          PG[(PostgreSQL
+          Supabase)]
+          QDR[(Qdrant Cloud
+          Vector DB)]
+          MEM[In-Memory
+          Session State]
+        end
+
+        subgraph EXT["🌐 External APIs"]
+          GROQ_API[Groq API
+          LLM Inference]
+          OR_API[OpenRouter API
+          LLM Fallback]
+          TAV[Tavily API
+          Web Search]
+        end
+
+        USER -->|"POST /message
+        {text, session_token}"| CHAT
+        CHAT -->|"HTTP POST"| BE
+        BE -->|"proxy"| CB
+        CB --> INVOKE
+        INVOKE -->|"rebuild state
+        from DB"| PG
+        INVOKE --> GRAPH
+
+        GRAPH --> PE
+        PE -->|"upsert_prefs"| PG
+        PE --> RTR
+        RTR --> CAT
+        RTR --> ADV
+        RTR --> SELL
+        RTR --> GUIDE
+        RTR --> GEN
+
+        CAT -->|"check_catalogue"| PG
+        CAT --> SN
+        CAT --> RN
+
+        SN -->|"encode"| MEM
+        SN -->|"vector_search"| QDR
+        SN -->|"get_images + 
+        new_matches"| PG
+        SN --> RESP
+
+        RN -->|"encode + search"| QDR
+        RN -->|"get_images"| PG
+        RN --> RESP
+
+        ADV -->|"grounding_block"| PG
+        ADV -->|"similar_cars"| QDR
+        ADV -->|"web_search"| TAV
+        ADV --> RESP
+
+        SELL -->|"market_search"| QDR
+        SELL -->|"price_compute"| MEM
+        SELL -->|"web_search"| TAV
+        SELL --> RESP
+
+        GUIDE --> RESP
+        GEN -->|"web_search"| TAV
+        GEN --> RESP
+
+        RESP -->|"insert_message"| PG
+        RESP -->|"emit events"| QUE
+        QUE -->|"SSE tokens,
+        cars, similar,
+        price, done"| SSE
+        SSE -->|"update"| UI
+        UI -->|"display"| USER
+
+        subgraph LLMCALL["⬆ LLM Calls (all nodes)"]
+          direction LR
+          GROQ_API
+          OR_API
+        end
+
+        PE -.->|"1x ainvoke"| LLMCALL
+        RTR -.->|"1x ainvoke"| LLMCALL
+        CAT -.->|"1x ainvoke"| LLMCALL
+        SN -.->|"2x"| LLMCALL
+        RN -.->|"1x astream"| LLMCALL
+        ADV -.->|"3x"| LLMCALL
+        SELL -.->|"2x"| LLMCALL
+        GUIDE -.->|"2x"| LLMCALL
+        GEN -.->|"3x"| LLMCALL
+
+        style USER fill:#3b82f6,color:#fff,stroke:none
+        style PG fill:#22c55e,color:#fff,stroke:#16a34a
+        style QDR fill:#22c55e,color:#fff,stroke:#16a34a
+        style MEM fill:#22c55e,color:#fff,stroke:#16a34a
+        style GROQ_API fill:#8b5cf6,color:#fff,stroke:none
+        style OR_API fill:#8b5cf6,color:#fff,stroke:none
+        style TAV fill:#f59e0b,color:#fff,stroke:none
+
+        style CHAT fill:#1a1d27,stroke:#3b82f6,color:#e4e6f0
+        style SSE fill:#1a1d27,stroke:#3b82f6,color:#e4e6f0
+        style UI fill:#1a1d27,stroke:#3b82f6,color:#e4e6f0
+        style PROXY fill:#1a1d27,stroke:#6b7280,color:#e4e6f0
+        style INVOKE fill:#1a1d27,stroke:#6b7280,color:#e4e6f0
+        style GRAPH fill:#1a1d27,stroke:#6b7280,color:#e4e6f0
+        style QUE fill:#1a1d27,stroke:#6b7280,color:#e4e6f0
+    </pre>
+  </div>
+
+  <!-- ==================================================================== -->
+  <!-- SECTION 6: SSE EVENT DATA FLOW                                       -->
+  <!-- ==================================================================== -->
+  <h2>6. SSE Event Stream (responder_node → Frontend)</h2>
+  <p>Sequence of events emitted by the responder_node over a single SSE connection during a request.</p>
+
+  <div class="diagram-wrapper">
+    <pre class="mermaid">
+      sequenceDiagram
+        participant U as User
+        participant F as Frontend
+        participant B as Backend Proxy
+        participant C as Chatbot
+        participant Q as Qdrant
+        participant L as LLM (Groq)
+
+        U->>F: Type message / Speak
+        F->>B: POST /api/v1/chat/message
+        B->>C: POST /message
+        C->>C: Rebuild state from Postgres
+
+        Note over C: preference_extractor → router
+
+        C->>L: classify intent
+        L-->>C: intent: search_node
+
+        Note over C: specialist node executes
+
+        alt search_node
+          C->>L: build search query
+          L-->>C: query + filters
+          C->>Q: vector_search()
+          Q-->>C: results
+          C->>L: generate intro text
+          L-->>C: streamed text
+        end
+
+        Note over C, F: responder_node streams SSE
+
+        C-->>F: event: status {"Searching..."}
+        C-->>F: event: token {"word"}
+        C-->>F: event: token {"word"}
+        C-->>F: event: cars [...]
+        C-->>F: event: new_match [...]
+        C-->>F: event: done
+
+        F->>U: Render messages & cars
+    </pre>
+  </div>
+
+  <!-- ==================================================================== -->
+  <!-- FOOTER                                                               -->
+  <!-- ==================================================================== -->
+  <hr style="border-color:var(--border);margin:3rem 0 1rem;">
+  <p style="text-align:center;font-size:0.8rem;">
+    Cars Marketplace Egypt — DEPI Final Project 2026 &bull; Multi-Agent Architecture Document
+  </p>
+
+</div>
+
+<script>
+  mermaid.initialize({
+    theme: 'dark',
+    themeVariables: {
+      background: '#1a1d27',
+      primaryColor: '#3b82f6',
+      secondaryColor: '#8b5cf6',
+      tertiaryColor: '#22c55e',
+      primaryBorderColor: '#4b5563',
+      secondaryBorderColor: '#4b5563',
+      tertiaryBorderColor: '#4b5563',
+      lineColor: '#6b7280',
+      textColor: '#e4e6f0',
+      mainBkg: '#1a1d27',
+      nodeBorder: '#3b82f6',
+      clusterBkg: '#151820',
+      clusterBorder: '#2a2d3a',
+      titleColor: '#e4e6f0',
+      edgeLabelBackground: '#1a1d27',
+      nodeTextColor: '#e4e6f0',
+    },
+    flowchart: {
+      curve: 'basis',
+      padding: 16,
+      nodeSpacing: 50,
+      rankSpacing: 60,
+    },
+    sequence: {
+      actorFontSize: 13,
+      messageFontSize: 12,
+    },
+  });
+</script>
+
+</body>
+</html>

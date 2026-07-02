@@ -3,6 +3,27 @@ import asyncio
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
 from app.graph.state import CarsChatState
+from app.data.constants import NODE_STATUS_MAP, RESPONDER_TOKEN_DELAY_SECONDS
+
+
+def _clean_node_response(text: str) -> str:
+    if not text:
+        return ""
+    if "invalid_tool_calls=" in text or ("additional_kwargs=" in text and "response_metadata=" in text):
+        for quote in ("'", '"'):
+            prefix = f"content={quote}"
+            if prefix in text:
+                start = text.index(prefix) + len(prefix)
+                end = start
+                while end < len(text):
+                    if text[end] == "\\":
+                        end += 2
+                    elif text[end] == quote:
+                        break
+                    else:
+                        end += 1
+                return text[start:end]
+    return text.strip()
 
 
 async def responder_node(state: CarsChatState, config: RunnableConfig) -> dict:
@@ -10,20 +31,11 @@ async def responder_node(state: CarsChatState, config: RunnableConfig) -> dict:
     pool = config["configurable"].get("db_pool")
     sse_queue = config["configurable"].get("sse_queue")
     session_token = state.get("session_token", "")
-    node_response = state.get("node_response", "")
+    node_response = _clean_node_response(state.get("node_response", ""))
     intent = state.get("intent", "")
 
     # 1. Emit status event
-    status_map = {
-        "catalogue_node": "Checking our catalogue...",
-        "search_node": "Searching listings...",
-        "recommendation_node": "Finding alternatives...",
-        "advisor_node": "Analyzing this car...",
-        "seller_node": "Analyzing market data...",
-        "guide_node": "Looking that up...",
-        "general_node": "",
-    }
-    status_text = status_map.get(intent, "")
+    status_text = NODE_STATUS_MAP.get(intent, "")
     if status_text:
         _emit(sse_queue, {"type": "status", "content": status_text})
 
@@ -32,7 +44,7 @@ async def responder_node(state: CarsChatState, config: RunnableConfig) -> dict:
         for i, word in enumerate(words):
             chunk = word + (" " if i < len(words) - 1 else "")
             _emit(sse_queue, {"type": "token", "content": chunk})
-            await asyncio.sleep(0.02)
+            await asyncio.sleep(RESPONDER_TOKEN_DELAY_SECONDS)
 
     # 2. Emit node_response text as token events
     token_task = asyncio.ensure_future(send_tokens())

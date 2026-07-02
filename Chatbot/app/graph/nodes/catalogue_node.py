@@ -2,6 +2,7 @@ import json
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 from app.graph.state import CarsChatState
+from app.data.brand_origins import format_brand_origins_prompt
 
 EXTRACT_CATALOGUE_SYSTEM = """You are a catalogue checker for a car marketplace.
 Analyze the user's message and accumulated preferences to determine if they
@@ -11,16 +12,12 @@ If the user names a SPECIFIC brand and/or model and/or year (e.g., "BMW 318",
 "Toyota Corolla 2020", "show me BMWs", "Mercedes E-Class 2018"), extract those
 as exact metadata filters.
 
-If the user asks BROADLY ("find me cars", "German car", "show me some cars",
-"best SUV", "cheap automatic"), set exact_request to null — this is a general
+If the user asks BROADLY ("find me cars", "show me some cars",
+"cheap automatic"), set exact_request to null — this is a general
 semantic search, not a catalogue lookup.
 
 CRITICAL: Expand brand origin requests into the actual brand names:
-- "German car" → brands: ["BMW", "Mercedes", "Audi", "Volkswagen", "Porsche"]
-- "Japanese car" → brands: ["Toyota", "Honda", "Nissan", "Mazda"]
-- "American car" → brands: ["Ford", "Chevrolet", "Dodge", "Jeep"]
-- "Korean car" → brands: ["Hyundai", "Kia", "Genesis"]
-- etc.
+{brand_origins_prompt}
 
 Return ONLY valid JSON. No explanation, no markdown:
 {{
@@ -60,6 +57,7 @@ async def catalogue_node(state: CarsChatState, config: RunnableConfig) -> dict:
         SystemMessage(content=EXTRACT_CATALOGUE_SYSTEM.format(
             message=last_message,
             preferences_json=prefs_json,
+            brand_origins_prompt=format_brand_origins_prompt(),
         )),
         HumanMessage(content=last_message),
     ])

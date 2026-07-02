@@ -2,6 +2,7 @@ import json
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 from app.graph.state import CarsChatState
+from app.data.constants import RECOMMENDATION_LIMIT
 
 RECOMMENDATION_SYSTEM = """The user asked for a specific car that is NOT available
 in our catalogue. You need to recommend alternative cars that are actually in stock.
@@ -57,7 +58,7 @@ async def recommendation_node(state: CarsChatState, config: RunnableConfig) -> d
     # Search with relaxed filters — same body_type, broader brand range
     results = qdrant_search.search(
         vector=vector,
-        limit=8,
+        limit=RECOMMENDATION_LIMIT,
         price_min=prefs.get("budget_min"),
         price_max=prefs.get("budget_max"),
         body_type=body_type,
@@ -108,7 +109,23 @@ async def recommendation_node(state: CarsChatState, config: RunnableConfig) -> d
                     continue
 
     # Generate response text
-    alternatives_summary = f"{len(ads)} alternative car{'s' if len(ads) != 1 else ''} found"
+    alternatives_summary = ""
+    if ads:
+        cities = set()
+        body_types = set()
+        prices = []
+        for a in ads:
+            if a.get("city"): cities.add(a["city"])
+            if a.get("body_type"): body_types.add(a["body_type"])
+            if a.get("price"): prices.append(a["price"])
+        parts = [f"{len(ads)} alternative car{'s' if len(ads) != 1 else ''} found"]
+        if cities:
+            parts.append(f"in {', '.join(sorted(cities))}")
+        if body_types:
+            parts.append(f"({', '.join(sorted(body_types))})")
+        if prices:
+            parts.append(f"priced {min(prices):,.0f} – {max(prices):,.0f} EGP")
+        alternatives_summary = " ".join(parts)
     prefs_json = json.dumps(prefs, ensure_ascii=False, default=str)
     brands_str = ", ".join(brands_searched) if brands_searched else "unknown"
     model_str = model or "any"

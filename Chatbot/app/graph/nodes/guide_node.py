@@ -1,6 +1,7 @@
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 from app.graph.state import CarsChatState
+from app.data.website_guide import format_website_guide
 
 
 TOPIC_DETECT_SYSTEM = """Classify the user's website help question into one of these topics:
@@ -15,17 +16,7 @@ GUIDE_SYSTEM = """You are a friendly website guide for a car marketplace.
 Help the user with their question about how to use the website.
 
 Website features reference:
-- Post Ad: top navigation bar → "Post Ad" button → fill car details → upload
-  up to 10 photos → click Publish. Goes live immediately.
-- Filter/Search: homepage left sidebar has filters (brand, price, city, fuel,
-  body type, transmission, year range). Search bar accepts natural language.
-- Save/Favorites: heart icon on any car card or ad page. View at Profile → Favorites.
-- Compare: "Add to Compare" on up to 3 ads → comparison tray at page bottom →
-  "Compare Now" → full AI report with pros/cons and final recommendation.
-- Contact seller: phone number shown on every ad page below car details.
-- Edit ad: Profile → My Ads → Edit button on the ad.
-- Delete ad: Profile → My Ads → three-dot menu → Delete.
-- Account settings: Profile → Settings (name, phone, avatar, password).
+{website_guide}
 
 Detected topic: {detected_topic}
 User message: "{message}"
@@ -55,6 +46,7 @@ async def guide_node(state: CarsChatState, config: RunnableConfig) -> dict:
         SystemMessage(content=GUIDE_SYSTEM.format(
             detected_topic=detected_topic,
             message=last_message,
+            website_guide=format_website_guide(),
         )),
         HumanMessage(content=last_message),
     ]):

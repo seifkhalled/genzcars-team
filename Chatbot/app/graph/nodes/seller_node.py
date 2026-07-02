@@ -2,6 +2,14 @@ import json
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 from app.graph.state import CarsChatState
+from app.data.constants import (
+    SELLER_DEFAULT_YEAR_RANGE,
+    SELLER_MARKET_LIMIT,
+    SELLER_MEDIAN_MULTIPLIER_LOW,
+    SELLER_MEDIAN_MULTIPLIER_HIGH,
+    SELLER_HIGH_KM_MULTIPLIER_LOW,
+    SELLER_HIGH_KM_MULTIPLIER_HIGH,
+)
 
 
 SELLER_EXTRACT_SYSTEM = """The user is a seller. Extract the details of the car they want to sell or
@@ -90,10 +98,10 @@ async def seller_node(state: CarsChatState, config: RunnableConfig) -> dict:
 
         results = qdrant_search.search(
             vector=vector,
-            limit=10,
+            limit=SELLER_MARKET_LIMIT,
             brand=brand if brand else None,
-            year_min=(int(year) - 2) if year else None,
-            year_max=(int(year) + 2) if year else None,
+            year_min=(int(year) - SELLER_DEFAULT_YEAR_RANGE) if year else None,
+            year_max=(int(year) + SELLER_DEFAULT_YEAR_RANGE) if year else None,
         )
 
         prices = []
@@ -108,13 +116,13 @@ async def seller_node(state: CarsChatState, config: RunnableConfig) -> dict:
         if prices:
             prices.sort()
             median = prices[len(prices) // 2]
-            recommended_min = int(median * 0.9)
-            recommended_max = int(median * 1.1)
+            recommended_min = int(median * SELLER_MEDIAN_MULTIPLIER_LOW)
+            recommended_max = int(median * SELLER_MEDIAN_MULTIPLIER_HIGH)
             if km_driven:
                 avg_km = sum(r.get("km_driven", 0) or 0 for r in results) / max(len(results), 1)
                 if float(km_driven) > avg_km:
-                    recommended_min = int(median * 0.85)
-                    recommended_max = int(median * 1.05)
+                    recommended_min = int(median * SELLER_HIGH_KM_MULTIPLIER_LOW)
+                    recommended_max = int(median * SELLER_HIGH_KM_MULTIPLIER_HIGH)
 
             price_analysis = {
                 "min": min(prices),
@@ -131,7 +139,9 @@ async def seller_node(state: CarsChatState, config: RunnableConfig) -> dict:
     web_search = config["configurable"].get("web_search")
     if web_search and brand:
         try:
-            search_query = f"{brand} {model} {year} used car price Egypt market 2026"
+            from datetime import date
+            current_year = date.today().year
+            search_query = f"{brand} {model} {year} used car price Egypt market {current_year}"
             results = web_search.search(search_query)
             if results:
                 web_context = f"\n\nWeb market context:\n{results}"

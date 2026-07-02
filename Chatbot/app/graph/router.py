@@ -10,13 +10,15 @@ specialist agent should handle this request.
 Available agents and when to use each:
 - catalogue_node: user wants to find, browse, filter, or GET RECOMMENDATIONS for
   cars. Any mention of specs, budget, city, brand, condition, "show me cars",
-  "recommend", "suggest", "what should I buy", "best car", or "help me choose".
-  The catalogue will check if exact items exist and recommend alternatives.
+  "recommend", "suggest", "what should I buy", "best car", "help me choose",
+  "offer me" (meaning "show me offers/deals"), or "offers" in a buying context.
 - advisor_node: user is asking about a SPECIFIC car already in the conversation
   or on the current page. Questions like "is this a good deal?", "what are the
   problems with this car?", "should I buy it?" when a car is in context.
 - seller_node: user wants to sell a car, price their car, get listing advice,
-  or understand how to write a better ad.
+  or understand how to write a better ad. KEY DISTINCTION: "offer me" is BUYING
+  intent (give me offers = show me cars). Only route here if they explicitly say
+  "I want to sell" or "I'm offering my car".
 - guide_node: user needs help using the website. How to post an ad, how to
   filter, how to compare, how favorites work, how to contact a seller.
 - general_node: general car knowledge, reliability questions, maintenance advice,

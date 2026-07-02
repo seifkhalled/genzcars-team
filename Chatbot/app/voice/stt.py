@@ -46,6 +46,8 @@ async def transcribe_audio(audio_data: bytes, filename: str = "audio.webm") -> S
     keys = [settings.groq_api_key]
     if settings.groq_api_key_fallback:
         keys.append(settings.groq_api_key_fallback)
+    if settings.groq_api_key_fallback2:
+        keys.append(settings.groq_api_key_fallback2)
 
     resp = None
     last_error = None

@@ -55,7 +55,7 @@ preference_extractor ──► router
 |-----------|-----------|
 | Framework | FastAPI + Uvicorn |
 | Orchestration | LangGraph with MemorySaver checkpointer |
-| LLM | Groq — llama-3.3-70b-versatile |
+| LLM | Groq — openai/gpt-oss-120b |
 | Vector DB | Qdrant (384-dim cosine, all-MiniLM-L6-v2 embeddings) |
 | Database | Supabase PostgreSQL (asyncpg) |
 | Streaming | Server-Sent Events |
@@ -76,7 +76,7 @@ Copy `.env.example` or use the root `.env`:
 
 ```env
 GROQ_API_KEY=gsk_...
-GROQ_MODEL=llama-3.3-70b-versatile
+GROQ_MODEL=openai/gpt-oss-120b
 
 DATABASE_URL=postgresql+asyncpg://user:pass@host:5432/db
 

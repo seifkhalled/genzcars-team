@@ -19,6 +19,7 @@ export function useChat() {
   const { speak: speakTTS, stop: stopTTS } = useTTS()
   const responseTextRef = useRef('')
   const responseLangRef = useRef<string>('en')
+  const wasVoiceRef = useRef(false)
 
   // Restore session from localStorage on mount
   useEffect(() => {
@@ -70,6 +71,7 @@ export function useChat() {
     stopTTS()
     responseTextRef.current = ''
     responseLangRef.current = language || 'en'
+    wasVoiceRef.current = !!language
 
     const token = sessionToken
       ? sessionToken
@@ -147,10 +149,11 @@ export function useChat() {
         },
         onDone: () => {
           setStreaming(false)
-          // Speak the accumulated response
-          const responseText = responseTextRef.current.trim()
-          if (responseText) {
-            speakTTS(responseText, responseLangRef.current).catch(() => {})
+          if (wasVoiceRef.current) {
+            const responseText = responseTextRef.current.trim()
+            if (responseText) {
+              speakTTS(responseText, responseLangRef.current).catch(() => {})
+            }
           }
         },
         onError: (err) => {

@@ -32,7 +32,7 @@ async def compare_ads(
         if not ad or not ad["is_active"]:
             raise NotFoundException(f"Ad {aid} not found")
 
-    comparison_url = "http://localhost:8002"
+    comparison_url = settings.comparison_service_url
 
     async def generate():
         try:

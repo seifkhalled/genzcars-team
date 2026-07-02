@@ -63,6 +63,17 @@ Browser ──> nginx (:80)
 - SSE routes (`/api/v1/chat/`, `/api/v1/compare`) have `proxy_buffering off`
 - Chat SSE timeout: 3600s. Compare SSE timeout: 180s.
 
+## Architecture Diagrams
+
+Open **`docs/multi-agent-architecture.html`** in a browser for interactive visualizations of:
+
+- **Multi-Agent Graph** — LangGraph node flow with all edges (preference_extractor → router → specialist nodes → responder)
+- **Node Details & Tool Calling** — every node's LLM calls, database queries, vector search calls, and web search usage
+- **Tool Calling Matrix** — per-node tool usage table
+- **LLM Fallback Chain** — 3-tier Groq → OpenRouter fallback architecture
+- **Data Flow Diagram (DFD)** — end-to-end data flow from browser through backend, chatbot, vector DB, and external APIs
+- **SSE Event Stream** — sequence diagram showing event order during a request
+
 ## Folder Structure Expected
 
 ```

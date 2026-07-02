@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import httpx
 from langchain_groq import ChatGroq
@@ -48,9 +49,9 @@ class OpenRouterChat(BaseChatModel):
                     return ChatResult(generations=[ChatGeneration(message=AIMessage(content=content))])
             except httpx.HTTPStatusError as e:
                 last_error = e
-                if 500 <= e.response.status_code < 600:
+                if e.response.status_code == 429 or 500 <= e.response.status_code < 600:
                     import asyncio
-                    await asyncio.sleep(2 ** attempt)
+                    await asyncio.sleep(2 ** (attempt + 1))
                     continue
                 raise
         raise last_error
@@ -62,28 +63,48 @@ class OpenRouterChat(BaseChatModel):
 
 class FallbackLLM:
     def __init__(self, streaming: bool = False):
-        self.primary = ChatGroq(
-            model=settings.groq_model,
-            api_key=settings.groq_api_key,
-            temperature=0 if not streaming else 0.3,
-            streaming=streaming,
-            max_tokens=2048,
-        )
-        self._secondary = None
+        self._groq = None
+        self._groq_alt = None
+        self._groq_alt2 = None
         self._openrouter = None
+        self._openrouter_alt = None
         self.streaming = streaming
 
     @property
+    def primary(self):
+        if self._groq is None:
+            self._groq = ChatGroq(
+                model=settings.groq_model,
+                api_key=settings.groq_api_key,
+                temperature=0 if not self.streaming else 0.3,
+                streaming=self.streaming,
+                max_tokens=2048,
+            )
+        return self._groq
+
+    @property
     def secondary(self):
-        if self._secondary is None and settings.groq_api_key_fallback:
-            self._secondary = ChatGroq(
+        if self._groq_alt is None and settings.groq_api_key_fallback:
+            self._groq_alt = ChatGroq(
                 model=settings.groq_model,
                 api_key=settings.groq_api_key_fallback,
                 temperature=0 if not self.streaming else 0.3,
                 streaming=self.streaming,
                 max_tokens=2048,
             )
-        return self._secondary
+        return self._groq_alt
+
+    @property
+    def secondary2(self):
+        if self._groq_alt2 is None and settings.groq_api_key_fallback2:
+            self._groq_alt2 = ChatGroq(
+                model=settings.groq_model_fallback,
+                api_key=settings.groq_api_key_fallback2,
+                temperature=0 if not self.streaming else 0.3,
+                streaming=self.streaming,
+                max_tokens=2048,
+            )
+        return self._groq_alt2
 
     @property
     def fallback(self):
@@ -96,39 +117,60 @@ class FallbackLLM:
             )
         return self._openrouter
 
-    async def ainvoke(self, messages, **kwargs):
-        try:
-            return await self.primary.ainvoke(messages, **kwargs)
-        except Exception as e:
-            logger.warning("Primary Groq failed (%s: %s)", type(e).__name__, str(e)[:200])
-            if self.secondary:
-                try:
-                    logger.info("Trying fallback Groq key...")
-                    return await self.secondary.ainvoke(messages, **kwargs)
-                except Exception as e2:
-                    logger.warning("Fallback Groq also failed (%s: %s)", type(e2).__name__, str(e2)[:200])
-            logger.warning("Falling back to OpenRouter")
-            return await self.fallback.ainvoke(messages, **kwargs)
+    @property
+    def fallback_alt(self):
+        if self._openrouter_alt is None and settings.openrouter_api_key_fallback:
+            self._openrouter_alt = OpenRouterChat(
+                model=settings.openrouter_model,
+                api_key=settings.openrouter_api_key_fallback,
+                temperature=0 if not self.streaming else 0.3,
+                max_tokens=2048,
+            )
+        return self._openrouter_alt
 
-    async def astream(self, messages, **kwargs):
+    async def _try_ainvoke(self, provider, name, messages, **kwargs):
         try:
-            async for chunk in self.primary.astream(messages, **kwargs):
-                yield chunk
-        except Exception as e:
-            logger.warning("Primary Groq stream failed (%s: %s)", type(e).__name__, str(e)[:200])
-            if self.secondary:
-                try:
-                    logger.info("Trying fallback Groq key for stream...")
-                    async for chunk in self.secondary.astream(messages, **kwargs):
-                        yield chunk
-                    return
-                except Exception as e2:
-                    logger.warning("Fallback Groq stream also failed (%s: %s)", type(e2).__name__, str(e2)[:200])
-            logger.warning("Falling back to OpenRouter")
-            result = await self.fallback.ainvoke(messages, **kwargs)
+            return await asyncio.wait_for(provider.ainvoke(messages, **kwargs), timeout=15.0)
+        except asyncio.TimeoutError:
+            logger.warning("%s timed out after 15s", name)
+            raise
+
+    async def _try_astream(self, provider, name, messages, **kwargs):
+        if "OpenRouter" in name:
+            result = await asyncio.wait_for(provider.ainvoke(messages, **kwargs), timeout=20.0)
             content = result.generations[0].message.content if hasattr(result, "generations") else str(result)
             from langchain_core.messages import AIMessageChunk
-            yield AIMessageChunk(content=content)
+            return [AIMessageChunk(content=content)]
+        else:
+            chunks = []
+            async for chunk in provider.astream(messages, **kwargs):
+                chunks.append(chunk)
+            return chunks
+
+    async def ainvoke(self, messages, **kwargs):
+        providers = [("OpenRouter (alt key)", self.fallback_alt), ("OpenRouter", self.fallback), ("Groq", self.primary), ("Groq (alt key)", self.secondary), ("Groq (alt key 2)", self.secondary2)]
+        for name, provider in providers:
+            if provider is None:
+                continue
+            try:
+                return await self._try_ainvoke(provider, name, messages, **kwargs)
+            except Exception as e:
+                logger.warning("%s failed (%s: %s)", name, type(e).__name__, str(e)[:200])
+        raise RuntimeError("All LLM providers unavailable. Please try again later.")
+
+    async def astream(self, messages, **kwargs):
+        providers = [("OpenRouter (alt key)", self.fallback_alt), ("OpenRouter", self.fallback), ("Groq", self.primary), ("Groq (alt key)", self.secondary), ("Groq (alt key 2)", self.secondary2)]
+        for name, provider in providers:
+            if provider is None:
+                continue
+            try:
+                chunks = await asyncio.wait_for(self._try_astream(provider, name, messages, **kwargs), timeout=25.0)
+                for chunk in chunks:
+                    yield chunk
+                return
+            except Exception as e:
+                logger.warning("%s streaming failed (%s: %s)", name, type(e).__name__, str(e)[:200])
+        raise RuntimeError("All LLM providers unavailable. Please try again later.")
 
 
 def get_llm(streaming: bool = False) -> FallbackLLM:

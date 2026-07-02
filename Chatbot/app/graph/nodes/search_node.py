@@ -4,6 +4,14 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 from app.graph.state import CarsChatState
 from app.core.hallucination_guard import verify_results
+from app.data.car_features import format_expansions_prompt
+from app.data.constants import (
+    SEARCH_QUALITY_TOP_SCORE_MIN,
+    SEARCH_QUALITY_AVG_SCORE_MIN,
+    SEARCH_INITIAL_LIMIT,
+    SEARCH_BROAD_LIMIT,
+    MERGE_MAX_COUNT,
+)
 
 QUERY_BUILDER_SYSTEM = """You are a search query builder for a car marketplace vector database.
 Given the user's message and their accumulated preferences, build the best
@@ -18,16 +26,7 @@ Rules:
 3. Put EVERYTHING else (features, needs, preferences) into search_query for 
    semantic matching against listing descriptions.
 4. Expand colloquial car terms in search_query:
-   - "conditioner" / "AC" -> "air conditioning air conditioner AC"
-   - "4x4" -> "4x4 four wheel drive 4wd"
-   - "sunroof" -> "sunroof moonroof"
-   - "leather" -> "leather seats leather interior"
-   - "GPS" / "navigation" -> "GPS navigation nav"
-   - "camera" -> "backup camera rear camera"
-   - "bluetooth" -> "bluetooth handsfree"
-   - "push start" -> "push start keyless"
-   - "cruise" -> "cruise control"
-   - "sensor" -> "sensors parking sensor"
+{expansions_prompt}
 5. If the user asks about features typically in descriptions (not metadata), 
    use a broader search query and leave filters minimal/null.
 
@@ -64,12 +63,11 @@ User message: "{message}"
 
 
 def evaluate_search_quality(results: list[dict]) -> bool:
-    """Evaluate if search results are good enough using score-based heuristic."""
     if not results:
         return False
     avg_score = sum(r.get("score", 0) for r in results) / len(results)
     top_score = results[0].get("score", 0) if results else 0
-    return top_score > 0.65 or avg_score > 0.5
+    return top_score > SEARCH_QUALITY_TOP_SCORE_MIN or avg_score > SEARCH_QUALITY_AVG_SCORE_MIN
 
 
 def compute_dcg(results: list[dict]) -> float:
@@ -84,7 +82,7 @@ def compute_dcg(results: list[dict]) -> float:
     return dcg
 
 
-def merge_dedup_results(primary: list[dict], secondary: list[dict], max_count: int = 5) -> list[dict]:
+def merge_dedup_results(primary: list[dict], secondary: list[dict], max_count: int = MERGE_MAX_COUNT) -> list[dict]:
     seen = set()
     merged = []
     for r in primary + secondary:
@@ -111,6 +109,7 @@ async def search_node(state: CarsChatState, config: RunnableConfig) -> dict:
         SystemMessage(content=QUERY_BUILDER_SYSTEM.format(
             message=last_message,
             preferences_json=prefs_json,
+            expansions_prompt=format_expansions_prompt(),
         )),
         HumanMessage(content=last_message),
     ])
@@ -134,7 +133,7 @@ async def search_node(state: CarsChatState, config: RunnableConfig) -> dict:
 
     results = qdrant_search.search(
         vector=vector,
-        limit=5,
+        limit=SEARCH_INITIAL_LIMIT,
         price_min=filters.get("price_min"),
         price_max=filters.get("price_max"),
         city=filters.get("city"),
@@ -156,7 +155,7 @@ async def search_node(state: CarsChatState, config: RunnableConfig) -> dict:
         broader_vector = embedder.encode(broader_query)
         broader_results = qdrant_search.search(
             vector=broader_vector,
-            limit=10,
+            limit=SEARCH_BROAD_LIMIT,
             brand=brand_filter if isinstance(brand_filter, str) else None,
             brands=brand_filter if isinstance(brand_filter, list) else None,
         )
@@ -205,10 +204,23 @@ async def search_node(state: CarsChatState, config: RunnableConfig) -> dict:
                 continue
 
     # Step 4: Draft conversational response (streaming)
-    count = len(ads)
-    cars_summary = f"{count} car{'s' if count != 1 else ''} found"
-    if prefs.get("preferred_cities"):
-        cars_summary += f" in {', '.join(prefs['preferred_cities'])}"
+    cars_summary = ""
+    if ads:
+        cities = set()
+        body_types = set()
+        prices = []
+        for a in ads:
+            if a.get("city"): cities.add(a["city"])
+            if a.get("body_type"): body_types.add(a["body_type"])
+            if a.get("price"): prices.append(a["price"])
+        parts = [f"{len(ads)} car{'s' if len(ads) != 1 else ''} found"]
+        if cities:
+            parts.append(f"in {', '.join(sorted(cities))}")
+        if body_types:
+            parts.append(f"({', '.join(sorted(body_types))})")
+        if prices:
+            parts.append(f"priced {min(prices):,.0f} – {max(prices):,.0f} EGP")
+        cars_summary = " ".join(parts)
 
     streamed_text = ""
     async for chunk in llm_stream.astream([

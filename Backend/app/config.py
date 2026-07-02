@@ -20,13 +20,15 @@ class Settings(BaseSettings):
     gemini_api_key: str
     tavily_api_key: str
     groq_api_key: str = ""
-    groq_model: str = "llama-3.3-70b-versatile"
+    groq_model: str = "openai/gpt-oss-120b"
     openrouter_api_key: str = ""
     openrouter_vision_model: str = "google/gemini-2.0-flash-exp:free"
 
     supabase_storage_bucket: str = "car-images"
     supabase_brand_images_bucket: str = "brand-images"
     supabase_site_assets_bucket: str = "site-assets"
+
+    comparison_service_url: str = "http://localhost:8002"
 
     redis_url: str | None = None
 

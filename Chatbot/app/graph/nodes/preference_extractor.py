@@ -2,6 +2,7 @@ import json
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 from app.graph.state import CarsChatState
+from app.data.brand_origins import format_brand_origins_prompt
 
 
 EXTRACT_SYSTEM_PROMPT = """You are a preference extraction engine for a car marketplace.
@@ -12,14 +13,8 @@ Return ONLY a valid JSON object. No explanation, no markdown, no extra text.
 
 CRITICAL: When the user mentions a car origin/country (e.g., "German car",
 "Japanese car", "American car", "European car", "Korean car", "Italian car"),
-expand it to the actual brand names in preferred_brands:
-- "German" or "Germany" -> ["BMW", "Mercedes", "Audi", "Volkswagen", "Porsche", "Opel"]
-- "Japanese" or "Japan" -> ["Toyota", "Honda", "Nissan", "Mazda", "Suzuki", "Mitsubishi", "Subaru"]
-- "American" or "USA" or "America" -> ["Ford", "Chevrolet", "Dodge", "Jeep", "GMC", "Cadillac", "Lincoln", "Tesla"]
-- "Korean" or "Korea" or "South Korea" -> ["Hyundai", "Kia", "Genesis", "SsangYong"]
-- "European" or "Europe" -> ["BMW", "Mercedes", "Audi", "Volkswagen", "Peugeot", "Renault", "Fiat", "Volvo"]
-- "Italian" or "Italy" -> ["Fiat", "Alfa Romeo", "Lamborghini", "Ferrari", "Maserati"]
-- "British" or "UK" or "England" -> ["Land Rover", "Jaguar", "MINI", "Bentley", "Rolls-Royce"]
+expand it to the actual brand names in preferred_brands using this mapping:
+{brand_origins_prompt}
 
 Existing preferences:
 {current_preferences_json}
@@ -59,7 +54,8 @@ async def preference_extractor_node(state: CarsChatState, config: RunnableConfig
     current_prefs_json = json.dumps(current_prefs, ensure_ascii=False, default=str)
 
     system_prompt = EXTRACT_SYSTEM_PROMPT.format(
-        current_preferences_json=current_prefs_json
+        current_preferences_json=current_prefs_json,
+        brand_origins_prompt=format_brand_origins_prompt(),
     )
 
     response = await llm_fast.ainvoke([
