@@ -90,6 +90,17 @@ class FallbackLLM:
             logger.warning("Groq failed (%s: %s), falling back to OpenRouter", type(e).__name__, str(e)[:200])
             return await self.fallback.ainvoke(messages, **kwargs)
 
+    async def astream(self, messages, **kwargs):
+        try:
+            async for chunk in self.primary.astream(messages, **kwargs):
+                yield chunk
+        except Exception as e:
+            logger.warning("Groq stream failed (%s: %s), falling back to OpenRouter", type(e).__name__, str(e)[:200])
+            result = await self.fallback.ainvoke(messages, **kwargs)
+            content = result.generations[0].message.content if hasattr(result, "generations") else str(result)
+            from langchain_core.messages import AIMessageChunk
+            yield AIMessageChunk(content=content)
+
 
 def get_llm(streaming: bool = False) -> FallbackLLM:
     return FallbackLLM(streaming=streaming)
