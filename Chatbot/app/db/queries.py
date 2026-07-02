@@ -155,6 +155,47 @@ async def get_new_matching_ads(
         return [dict(r) for r in rows]
 
 
+async def check_catalogue_availability(
+    pool: asyncpg.Pool,
+    brand: str | None = None,
+    model: str | None = None,
+    year: int | None = None,
+    body_type: str | None = None,
+) -> dict:
+    """Check if any active ads match the exact metadata filters."""
+    conditions = ["is_active = TRUE"]
+    params: list = []
+    idx = 1
+    if brand:
+        conditions.append(f"LOWER(brand) = LOWER(${idx}::varchar)")
+        params.append(brand)
+        idx += 1
+    if model:
+        conditions.append(f"LOWER(model) = LOWER(${idx}::varchar)")
+        params.append(model)
+        idx += 1
+    if year:
+        conditions.append(f"year = ${idx}::integer")
+        params.append(year)
+        idx += 1
+    if body_type:
+        conditions.append(f"LOWER(body_type) = LOWER(${idx}::varchar)")
+        params.append(body_type)
+        idx += 1
+
+    where = " AND ".join(conditions)
+    async with pool.acquire() as conn:
+        count = await conn.fetchval(
+            f"SELECT COUNT(*) FROM ads WHERE {where}", *params
+        )
+        rows = await conn.fetch(
+            f"SELECT id, brand, model, year, price, body_type, city, condition, "
+            f"transmission, fuel_type, km_driven FROM ads WHERE {where} LIMIT 5",
+            *params,
+        )
+        return {"count": count, "ads": [dict(r) for r in rows]}
+
+
 async def get_ad_images_by_ids(pool: asyncpg.Pool, ad_ids: List[UUID]) -> dict:
     if not ad_ids:
         return {}

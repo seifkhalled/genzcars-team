@@ -42,5 +42,9 @@ models/
 # Brand logos (served from Supabase storage)
 Frontend/public/brand_logos/
 
+# Root-level generated images (not part of source)
+Gemini_Generated_Image_*
+/wallpaper.jpg
+
 # Logs
 *.log

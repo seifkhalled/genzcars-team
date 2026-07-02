@@ -84,6 +84,11 @@ async def chat_message(request: ChatRequest, req: Request):
                 "next_node": "",
                 "intent": "",
                 "node_response": "",
+                "retrieved_ads": [],
+                "similar_ads": [],
+                "price_analysis": None,
+                "catalogue_check": None,
+                "recommendations": [],
                 "turn_count": turn_count,
                 "intent_history": intent_history,
             }

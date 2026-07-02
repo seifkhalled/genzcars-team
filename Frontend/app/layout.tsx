@@ -4,6 +4,7 @@ import { NextIntlClientProvider } from 'next-intl'
 import { getMessages } from 'next-intl/server'
 import { Navbar } from '@/components/layout/Navbar'
 import { MobileNav } from '@/components/layout/MobileNav'
+import { PageTransition } from '@/components/layout/PageTransition'
 import { Footer } from '@/components/layout/Footer'
 import { ChatBubble } from '@/components/chat/ChatBubble'
 import { ChatDrawer } from '@/components/chat/ChatDrawer'
@@ -14,7 +15,7 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-sans' })
 const cairo = Cairo({ subsets: ['arabic'], variable: '--font-arabic' })
 
 export const metadata: Metadata = {
-  title: 'CarsMarket Egypt - Find Your Perfect Car',
+  title: 'Deals Egypt - Find Your Perfect Car',
   description:
     "Egypt's AI-powered car marketplace. Find your perfect car with smart search, compare listings, and get expert advice from our AI assistant.",
   icons: {
@@ -40,7 +41,7 @@ export default async function RootLayout({
         <NextIntlClientProvider messages={messages}>
           <Navbar />
           <div className="pb-14 md:pb-0">
-            {children}
+            <PageTransition>{children}</PageTransition>
           </div>
           <MobileNav />
           <Footer />

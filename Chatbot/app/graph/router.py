@@ -8,9 +8,10 @@ Based on the conversation history and the latest user message, decide which
 specialist agent should handle this request.
 
 Available agents and when to use each:
-- search_node: user wants to find, browse, filter, or GET RECOMMENDATIONS for
+- catalogue_node: user wants to find, browse, filter, or GET RECOMMENDATIONS for
   cars. Any mention of specs, budget, city, brand, condition, "show me cars",
   "recommend", "suggest", "what should I buy", "best car", or "help me choose".
+  The catalogue will check if exact items exist and recommend alternatives.
 - advisor_node: user is asking about a SPECIFIC car already in the conversation
   or on the current page. Questions like "is this a good deal?", "what are the
   problems with this car?", "should I buy it?" when a car is in context.
@@ -33,7 +34,7 @@ Current context:
 Latest user message: "{latest_message}"
 
 Respond with ONLY one of these exact strings:
-search_node | advisor_node | seller_node | guide_node | general_node
+catalogue_node | advisor_node | seller_node | guide_node | general_node
 """
 
 
@@ -67,7 +68,7 @@ async def router_node(state: CarsChatState, config: RunnableConfig) -> dict:
 
     node_name = response.content.strip().lower() if response.content else "general_node"
 
-    valid_nodes = {"search_node", "advisor_node", "seller_node", "guide_node", "general_node"}
+    valid_nodes = {"catalogue_node", "advisor_node", "seller_node", "guide_node", "general_node"}
     if node_name not in valid_nodes:
         node_name = "general_node"
 
@@ -80,9 +81,11 @@ async def router_node(state: CarsChatState, config: RunnableConfig) -> dict:
         "node_response": "",
     }
 
-    if node_name == "search_node":
+    if node_name == "catalogue_node":
         result["retrieved_ads"] = []
         result["similar_ads"] = []
         result["price_analysis"] = None
+        result["catalogue_check"] = None
+        result["recommendations"] = []
 
     return result

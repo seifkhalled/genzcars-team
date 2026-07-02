@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { Heart, MapPin, Gauge, Fuel, Settings, Trash2, AlertTriangle } from 'lucide-react'
@@ -21,6 +21,7 @@ export function AdCard({ ad, editable, onDelete }: AdCardProps) {
   const selected = isSelected(ad.id)
   const badge = getConditionBadge(ad.condition)
   const [isSaved, setIsSaved] = useState(false)
+  const [savedBounce, setSavedBounce] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
@@ -43,7 +44,7 @@ export function AdCard({ ad, editable, onDelete }: AdCardProps) {
 
   return (
     <div
-      className="group bg-surface rounded-xl border border-surface-border overflow-hidden cursor-pointer transition-all hover:shadow-lg"
+      className="group bg-surface rounded-xl border border-surface-border overflow-hidden cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-primary-500/10"
       onClick={() => router.push(`/ads/${ad.id}`)}
       role="button"
       tabIndex={0}
@@ -97,11 +98,22 @@ export function AdCard({ ad, editable, onDelete }: AdCardProps) {
           </div>
         ) : (
           <button
-            onClick={(e) => { e.stopPropagation(); setIsSaved(!isSaved) }}
+            onClick={(e) => {
+              e.stopPropagation()
+              setIsSaved(!isSaved)
+              setSavedBounce(true)
+              setTimeout(() => setSavedBounce(false), 400)
+            }}
             className="absolute top-2 right-2 p-2 bg-white/80 backdrop-blur-sm rounded-full hover:bg-white transition-colors"
             aria-label={isSaved ? 'Remove from saved' : 'Save'}
           >
-            <Heart className={cn('w-4 h-4', isSaved ? 'fill-danger text-danger' : 'text-text-secondary')} />
+            <Heart
+              className={cn(
+                'w-4 h-4 transition-transform duration-300',
+                isSaved ? 'fill-danger text-danger' : 'text-text-secondary',
+                savedBounce && 'scale-[1.3]'
+              )}
+            />
           </button>
         )}
       </div>

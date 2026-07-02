@@ -15,7 +15,9 @@ async def responder_node(state: CarsChatState, config: RunnableConfig) -> dict:
 
     # 1. Emit status event
     status_map = {
+        "catalogue_node": "Checking our catalogue...",
         "search_node": "Searching listings...",
+        "recommendation_node": "Finding alternatives...",
         "advisor_node": "Analyzing this car...",
         "seller_node": "Analyzing market data...",
         "guide_node": "Looking that up...",

@@ -26,6 +26,7 @@ class Settings(BaseSettings):
 
     supabase_storage_bucket: str = "car-images"
     supabase_brand_images_bucket: str = "brand-images"
+    supabase_site_assets_bucket: str = "site-assets"
 
     redis_url: str | None = None
 

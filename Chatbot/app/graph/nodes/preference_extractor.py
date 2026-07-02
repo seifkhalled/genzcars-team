@@ -10,6 +10,17 @@ Merge with existing preferences — never clear a previously set value
 unless the user explicitly contradicts it.
 Return ONLY a valid JSON object. No explanation, no markdown, no extra text.
 
+CRITICAL: When the user mentions a car origin/country (e.g., "German car",
+"Japanese car", "American car", "European car", "Korean car", "Italian car"),
+expand it to the actual brand names in preferred_brands:
+- "German" or "Germany" -> ["BMW", "Mercedes", "Audi", "Volkswagen", "Porsche", "Opel"]
+- "Japanese" or "Japan" -> ["Toyota", "Honda", "Nissan", "Mazda", "Suzuki", "Mitsubishi", "Subaru"]
+- "American" or "USA" or "America" -> ["Ford", "Chevrolet", "Dodge", "Jeep", "GMC", "Cadillac", "Lincoln", "Tesla"]
+- "Korean" or "Korea" or "South Korea" -> ["Hyundai", "Kia", "Genesis", "SsangYong"]
+- "European" or "Europe" -> ["BMW", "Mercedes", "Audi", "Volkswagen", "Peugeot", "Renault", "Fiat", "Volvo"]
+- "Italian" or "Italy" -> ["Fiat", "Alfa Romeo", "Lamborghini", "Ferrari", "Maserati"]
+- "British" or "UK" or "England" -> ["Land Rover", "Jaguar", "MINI", "Bentley", "Rolls-Royce"]
+
 Existing preferences:
 {current_preferences_json}
 

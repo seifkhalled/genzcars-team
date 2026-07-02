@@ -138,6 +138,36 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning("Failed to ensure brand images bucket: %s", e)
 
+    # Ensure site assets bucket and upload logo/wallpaper
+    try:
+        buckets = app.state.supabase.storage.list_buckets()
+        bucket_names = [b.name for b in buckets]
+        if settings.supabase_site_assets_bucket not in bucket_names:
+            app.state.supabase.storage.create_bucket(
+                id=settings.supabase_site_assets_bucket,
+                options={"public": True},
+            )
+            logger.info("Created Supabase storage bucket: %s", settings.supabase_site_assets_bucket)
+        else:
+            logger.info("Supabase storage bucket already exists: %s", settings.supabase_site_assets_bucket)
+
+        # Upload logo.png and wallpaper.jpg from Frontend/public if they exist
+        import os
+        frontend_public = os.path.join(os.path.dirname(__file__), "..", "..", "Frontend", "public")
+        logo_path = os.path.join(frontend_public, "logo.png")
+        wallpaper_path = os.path.join(frontend_public, "wallpaper.jpg")
+        for local_path, remote_name in [(logo_path, "logo.png"), (wallpaper_path, "wallpaper.jpg")]:
+            if os.path.exists(local_path):
+                with open(local_path, "rb") as f:
+                    app.state.supabase.storage.from_(settings.supabase_site_assets_bucket).upload(
+                        path=remote_name,
+                        file=f.read(),
+                        file_options={"content-type": "image/png" if remote_name.endswith("png") else "image/jpeg", "upsert": "true"},
+                    )
+                logger.info("Uploaded %s to site-assets bucket", remote_name)
+    except Exception as e:
+        logger.warning("Failed to ensure site assets bucket: %s", e)
+
     app.state.qdrant = create_qdrant_client()
     collections = app.state.qdrant.get_collections()
     if settings.qdrant_collection not in [c.name for c in collections.collections]:
@@ -295,7 +325,7 @@ async def internal_handler(request: Request, exc: Exception):
     )
 
 
-from app.routers import auth, users, ads, favorites, search, chat, compare, compare_ai
+from app.routers import auth, users, ads, favorites, search, chat, compare, compare_ai, analytics, site_assets
 
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")
@@ -305,6 +335,8 @@ app.include_router(search.router, prefix="/api/v1")
 app.include_router(chat.router, prefix="/api/v1")
 app.include_router(compare.router, prefix="/api/v1")
 app.include_router(compare_ai.router, prefix="/api/v1")
+app.include_router(analytics.router, prefix="/api/v1")
+app.include_router(site_assets.router, prefix="/api/v1")
 
 
 @app.get("/health")

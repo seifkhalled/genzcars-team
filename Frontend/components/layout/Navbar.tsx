@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button'
 import { LanguageToggle } from '@/components/ui/LanguageToggle'
 import { useAuthStore } from '@/store/authStore'
 import { useChatStore } from '@/store/chatStore'
+import { getSiteAssetUrl } from '@/lib/site-assets'
 
 export function Navbar() {
   const t = useTranslations('nav')
@@ -15,13 +16,12 @@ export function Navbar() {
   const { open: openChat } = useChatStore()
 
   return (
-    <nav className="sticky top-0 z-40 bg-surface border-b border-surface-border">
+    <nav className="sticky top-0 z-40 bg-white/70 backdrop-blur-xl border-b border-white/20 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center gap-8">
             <Link href="/" className="flex items-center gap-2">
-              <Image src="/logo.svg" alt="CarsMarket" width={32} height={32} className="shrink-0" />
-              <span className="text-lg font-bold text-text-primary">CarsMarket</span>
+              <Image src={getSiteAssetUrl('logo.png')} alt="Deals" width={80} height={80} className="shrink-0" loading="eager" />
             </Link>
 
             <div className="hidden md:flex items-center gap-1">
@@ -30,6 +30,9 @@ export function Navbar() {
               </Link>
               <Link href="/ads/new" className="px-3 py-2 text-sm text-text-secondary hover:text-text-primary rounded-lg hover:bg-surface-secondary transition-colors">
                 {t('sell')}
+              </Link>
+              <Link href="/about" className="px-3 py-2 text-sm text-text-secondary hover:text-text-primary rounded-lg hover:bg-surface-secondary transition-colors">
+                About Us
               </Link>
             </div>
           </div>

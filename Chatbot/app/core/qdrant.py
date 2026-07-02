@@ -1,6 +1,6 @@
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qmodels
-from typing import Optional
+from typing import Optional, List
 from app.config import settings
 
 
@@ -17,6 +17,7 @@ class QdrantSearch:
         price_max: Optional[float] = None,
         city: Optional[str] = None,
         brand: Optional[str] = None,
+        brands: Optional[List[str]] = None,
         fuel_type: Optional[str] = None,
         transmission: Optional[str] = None,
         body_type: Optional[str] = None,
@@ -39,7 +40,11 @@ class QdrantSearch:
             must.append(qmodels.FieldCondition(
                 key="city", match=qmodels.MatchValue(value=city)
             ))
-        if brand:
+        if brands:
+            must.append(qmodels.FieldCondition(
+                key="brand", match=qmodels.MatchAny(any=brands)
+            ))
+        elif brand:
             must.append(qmodels.FieldCondition(
                 key="brand", match=qmodels.MatchValue(value=brand)
             ))

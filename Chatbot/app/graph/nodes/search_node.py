@@ -125,13 +125,21 @@ async def search_node(state: CarsChatState, config: RunnableConfig) -> dict:
 
     # Step 2: Initial search
     vector = embedder.encode(search_query)
+    brand_filter = filters.get("brand")
+    # If no explicit brand filter, use preferred brands from accumulated preferences
+    if not brand_filter:
+        prefs_brands = prefs.get("preferred_brands", [])
+        if prefs_brands:
+            brand_filter = prefs_brands
+
     results = qdrant_search.search(
         vector=vector,
         limit=5,
         price_min=filters.get("price_min"),
         price_max=filters.get("price_max"),
         city=filters.get("city"),
-        brand=filters.get("brand"),
+        brand=brand_filter if isinstance(brand_filter, str) else None,
+        brands=brand_filter if isinstance(brand_filter, list) else None,
         fuel_type=filters.get("fuel_type"),
         transmission=filters.get("transmission"),
         body_type=filters.get("body_type"),
@@ -149,6 +157,8 @@ async def search_node(state: CarsChatState, config: RunnableConfig) -> dict:
         broader_results = qdrant_search.search(
             vector=broader_vector,
             limit=10,
+            brand=brand_filter if isinstance(brand_filter, str) else None,
+            brands=brand_filter if isinstance(brand_filter, list) else None,
         )
         broader_results = verify_results(broader_results)
         broader_dcg = compute_dcg(broader_results)

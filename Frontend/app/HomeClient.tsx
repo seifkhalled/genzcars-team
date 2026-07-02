@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { BrandCards } from '@/components/brands/BrandCards'
 import { FeaturedCars } from '@/components/ads/FeaturedCars'
 import { RecentlyViewed } from '@/components/ads/RecentlyViewed'
+import { AIShowcase } from '@/components/home/AIShowcase'
 import { AdGridClient } from './AdGridClient'
 import type { Ad } from '@/types/ad'
 
@@ -28,6 +29,7 @@ export function HomeClient({ initialAds }: HomeClientProps) {
           selectedBrand={selectedBrand}
         />
       </main>
+      <AIShowcase />
     </>
   )
 }

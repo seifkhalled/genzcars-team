@@ -69,9 +69,9 @@ async def search(
 
     query_filter = qmodels.Filter(must=must_conditions) if must_conditions else None
 
-    search_result = qdrant.search(
+    search_result = qdrant.query_points(
         collection_name=settings.qdrant_collection,
-        query_vector=vector,
+        query=vector,
         query_filter=query_filter,
         limit=limit,
         with_payload=True,
@@ -79,7 +79,7 @@ async def search(
 
     ad_ids = []
     score_map = {}
-    for point in search_result:
+    for point in search_result.points:
         aid = UUID(point.payload.get("ad_id", point.id))
         ad_ids.append(aid)
         score_map[str(aid)] = point.score

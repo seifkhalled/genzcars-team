@@ -18,7 +18,7 @@ interface ChatState {
   addMessage: (msg: Omit<ChatMessage, 'id'>) => void
   appendToken: (token: string) => void
   setStreaming: (val: boolean) => void
-  setSessionToken: (token: string) => void
+  setSessionToken: (token: string | null) => void
   setContextAdId: (id: string | null) => void
   clearMessages: () => void
 }

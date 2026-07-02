@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { motion } from 'framer-motion'
 import { Bot, User } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ChatCarCard } from './ChatCarCard'
@@ -111,8 +112,11 @@ export function ChatMessages({ messages, isStreaming }: ChatMessagesProps) {
         if (msg.role === 'system' || msg.role === 'user' || msg.role === 'assistant') {
           const isUser = msg.role === 'user'
           return (
-            <div
+            <motion.div
               key={msg.id}
+              initial={{ opacity: 0, scale: 0.95, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 25, mass: 0.5 }}
               className={cn(
                 'flex gap-2',
                 isUser ? 'justify-end' : msg.type === 'status' || msg.type === 'error' ? 'justify-center' : 'justify-start'
@@ -144,7 +148,7 @@ export function ChatMessages({ messages, isStreaming }: ChatMessagesProps) {
                   <User className="w-4 h-4 text-white" />
                 </div>
               )}
-            </div>
+            </motion.div>
           )
         }
 

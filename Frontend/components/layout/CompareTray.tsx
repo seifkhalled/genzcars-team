@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter, usePathname } from 'next/navigation'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useTranslations } from 'next-intl'
 import { X, ArrowRight } from 'lucide-react'
 import Image from 'next/image'
@@ -12,11 +13,18 @@ export function CompareTray() {
   const router = useRouter()
   const pathname = usePathname()
   const { ads, removeAd, clearAll } = useCompareStore()
-
-  if (ads.length === 0 || pathname === '/compare') return null
+  const show = ads.length > 0 && pathname !== '/compare'
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40 bg-surface border-t border-surface-border shadow-lg animate-slide-up">
+    <AnimatePresence>
+      {show && (
+        <motion.div
+          initial={{ y: '100%', opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: '100%', opacity: 0 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+          className="fixed bottom-0 left-0 right-0 z-40 bg-surface/90 backdrop-blur-xl border-t border-surface-border shadow-lg"
+        >
       <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-4">
         <div className="flex items-center gap-3 flex-1 overflow-x-auto">
           {ads.map((ad) => (
@@ -55,6 +63,8 @@ export function CompareTray() {
           </Button>
         </div>
       </div>
-    </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }

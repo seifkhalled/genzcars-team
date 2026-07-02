@@ -39,5 +39,8 @@ class CarsChatState(TypedDict):
     price_analysis: dict | None
     node_response: str
 
+    catalogue_check: dict | None
+    recommendations: list[dict]
+
     turn_count: int
     intent_history: list[str]

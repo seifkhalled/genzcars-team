@@ -139,8 +139,8 @@ async def _call_vision_llm(ad: dict, image_urls: List[str]) -> dict:
         temperature=0.1,
         max_tokens=1024,
         extra_headers={
-            "HTTP-Referer": "https://carsmarket.eg",
-            "X-Title": "CarsMarket Egypt",
+            "HTTP-Referer": "https://dealsegypt.com",
+            "X-Title": "Deals Egypt",
         },
     )
 
