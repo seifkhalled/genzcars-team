@@ -32,16 +32,16 @@ export default function VerdictCard({ verdict, cars }: VerdictCardProps) {
         </div>
 
         <h3 className="text-lg font-bold">{winner.brand} {winner.model}</h3>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="mt-1 text-sm text-text-muted">
           {formatPrice(winner.price)}
         </p>
 
         <div className="mt-3 flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">{t('confidence')}:</span>
+          <span className="text-xs text-text-muted">{t('confidence')}:</span>
           <span className="text-sm font-semibold">{verdict.confidence === 'high' ? '90%' : verdict.confidence === 'medium' ? '70%' : '50%'}</span>
         </div>
 
-        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+        <p className="mt-2 text-sm leading-relaxed text-text-muted">
           {verdict.reasoning}
         </p>
 
@@ -54,14 +54,14 @@ export default function VerdictCard({ verdict, cars }: VerdictCardProps) {
       {runnerUp && (
         <div className="rounded-lg border border-muted p-4">
           <div className="mb-2 flex items-center gap-2">
-            <Award className="h-4 w-4 text-muted-foreground" />
-            <span className="text-xs font-medium text-muted-foreground">
+            <Award className="h-4 w-4 text-text-muted" />
+            <span className="text-xs font-medium text-text-muted">
               {t('runnerUp')}
             </span>
           </div>
 
           <h4 className="text-base font-semibold">{runnerUp.brand} {runnerUp.model}</h4>
-          <p className="mt-0.5 text-sm text-muted-foreground">
+          <p className="mt-0.5 text-sm text-text-muted">
             {formatPrice(runnerUp.price)}
           </p>
 

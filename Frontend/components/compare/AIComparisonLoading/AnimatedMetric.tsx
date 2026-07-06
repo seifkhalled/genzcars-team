@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 
 interface Props {
@@ -15,6 +15,8 @@ interface Props {
 export default function AnimatedMetric({ label, value, max = 100, suffix = '', color = '#3b82f6', delay = 0 }: Props) {
   const [displayed, setDisplayed] = useState(0)
 
+  const rafRef = useRef<number>()
+
   useEffect(() => {
     const timer = setTimeout(() => {
       const duration = 1500
@@ -24,12 +26,15 @@ export default function AnimatedMetric({ label, value, max = 100, suffix = '', c
         const progress = Math.min(elapsed / duration, 1)
         const eased = 1 - Math.pow(1 - progress, 3)
         setDisplayed(Math.round(eased * value))
-        if (progress < 1) requestAnimationFrame(animate)
+        if (progress < 1) rafRef.current = requestAnimationFrame(animate)
       }
-      requestAnimationFrame(animate)
+      rafRef.current = requestAnimationFrame(animate)
     }, delay)
 
-    return () => clearTimeout(timer)
+    return () => {
+      clearTimeout(timer)
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+    }
   }, [value, delay])
 
   return (

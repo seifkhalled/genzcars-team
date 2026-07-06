@@ -138,8 +138,8 @@ export default function CompareContent() {
                   <div>
                     <h4 className="text-xs font-semibold text-green-600 uppercase tracking-wide mb-1">{t('pros') || 'Pros'}</h4>
                     <ul className="space-y-1">
-                      {car.pros.map((pro, i) => (
-                        <li key={i} className="text-sm text-text-secondary flex items-start gap-1.5">
+                      {car.pros.map((pro) => (
+                        <li key={pro} className="text-sm text-text-secondary flex items-start gap-1.5">
                           <span className="text-green-500 mt-0.5">+</span>
                           {pro}
                         </li>
@@ -149,8 +149,8 @@ export default function CompareContent() {
                   <div>
                     <h4 className="text-xs font-semibold text-danger uppercase tracking-wide mb-1">{t('cons') || 'Cons'}</h4>
                     <ul className="space-y-1">
-                      {car.cons.map((con, i) => (
-                        <li key={i} className="text-sm text-text-secondary flex items-start gap-1.5">
+                      {car.cons.map((con) => (
+                        <li key={con} className="text-sm text-text-secondary flex items-start gap-1.5">
                           <span className="text-danger mt-0.5">-</span>
                           {con}
                         </li>
@@ -168,8 +168,8 @@ export default function CompareContent() {
               <h2 className="text-lg font-semibold text-text-primary">{t('buyerPersona') || 'Buyer Persona Match'}</h2>
             </div>
             <div className="space-y-3">
-              {report.buyer_persona_match.map((match, i) => (
-                <div key={i} className="flex items-start gap-3 p-3 bg-surface-secondary rounded-lg">
+              {report.buyer_persona_match.map((match) => (
+                <div key={match.persona} className="flex items-start gap-3 p-3 bg-surface-secondary rounded-lg">
                   <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-primary-500 font-bold text-sm flex-shrink-0">
                     {(match.best_match_ad_id?.charAt(0)?.toUpperCase()) || '?'}
                   </div>
@@ -188,8 +188,8 @@ export default function CompareContent() {
               <h2 className="text-lg font-semibold text-text-primary">{t('keyDifferences') || 'Key Differences'}</h2>
             </div>
             <ul className="space-y-2">
-              {report.key_differences.map((diff, i) => (
-                <li key={i} className="text-sm text-text-secondary flex items-start gap-2">
+              {report.key_differences.map((diff) => (
+                <li key={diff} className="text-sm text-text-secondary flex items-start gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-primary-500 mt-1.5 flex-shrink-0" />
                   {diff}
                 </li>
@@ -215,8 +215,8 @@ export default function CompareContent() {
                 <div key={source.ad_id}>
                   <p className="text-sm font-medium text-text-primary mb-2">{source.brand} {source.model}</p>
                   <ul className="space-y-1">
-                    {source.sources.map((s, i) => (
-                      <li key={i}>
+                    {source.sources.map((s) => (
+                      <li key={s.url}>
                         <a
                           href={s.url}
                           target="_blank"

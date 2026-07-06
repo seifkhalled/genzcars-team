@@ -27,7 +27,7 @@ export default function ScoreBar({ label, score, maxScore = 10 }: ScoreBarProps)
 
   return (
     <div className="flex items-center gap-3">
-      <span className="w-32 shrink-0 text-right text-sm font-medium text-muted-foreground">
+      <span className="w-32 shrink-0 text-right text-sm font-medium text-text-muted">
         {label}
       </span>
 

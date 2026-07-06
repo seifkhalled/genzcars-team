@@ -48,16 +48,16 @@ export default function LoginPage() {
 
   return (
     <div className="mx-auto mt-20 max-w-md px-4">
-      <div className="rounded-xl border bg-card p-8 shadow-sm">
-        <h1 className="text-2xl font-bold">{t('signIn') || 'Sign In'}</h1>
-        <p className="mt-1 text-muted-foreground text-sm">
+      <div className="rounded-xl border border-surface-border bg-surface p-8 shadow-sm">
+        <h1 className="text-2xl font-bold text-text-primary">{t('signIn') || 'Sign In'}</h1>
+        <p className="mt-1 text-text-muted text-sm">
           {t('signInSubtitle') || 'Welcome back! Please enter your credentials.'}
         </p>
 
         <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-4">
           <div className="space-y-1">
             <div className="relative">
-              <Mail className="text-muted-foreground absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" />
+              <Mail className="text-text-muted absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" />
               <Input
                 {...register('email')}
                 type="email"
@@ -66,13 +66,13 @@ export default function LoginPage() {
               />
             </div>
             {errors.email && (
-              <p className="text-destructive text-xs">{errors.email.message}</p>
+              <p className="text-danger text-xs">{errors.email.message}</p>
             )}
           </div>
 
           <div className="space-y-1">
             <div className="relative">
-              <Lock className="text-muted-foreground absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" />
+              <Lock className="text-text-muted absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" />
               <Input
                 {...register('password')}
                 type={showPassword ? 'text' : 'password'}
@@ -82,7 +82,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => setShowPassword((prev) => !prev)}
-                className="text-muted-foreground absolute right-3 top-1/2 -translate-y-1/2"
+                className="text-text-muted absolute right-3 top-1/2 -translate-y-1/2"
               >
                 {showPassword ? (
                   <EyeOff className="h-4 w-4" />
@@ -92,12 +92,12 @@ export default function LoginPage() {
               </button>
             </div>
             {errors.password && (
-              <p className="text-destructive text-xs">{errors.password.message}</p>
+              <p className="text-danger text-xs">{errors.password.message}</p>
             )}
           </div>
 
           {apiError && (
-            <p className="text-destructive text-sm">{apiError}</p>
+            <p className="text-danger text-sm">{apiError}</p>
           )}
 
           <Button type="submit" className="w-full" disabled={isSubmitting}>
@@ -105,9 +105,9 @@ export default function LoginPage() {
           </Button>
         </form>
 
-        <p className="mt-4 text-center text-sm text-muted-foreground">
+        <p className="mt-4 text-center text-sm text-text-muted">
           Don&apos;t have an account?{' '}
-          <Link href="/register" className="font-medium text-primary hover:underline">
+          <Link href="/register" className="font-medium text-primary-500 hover:underline">
             Register
           </Link>
         </p>

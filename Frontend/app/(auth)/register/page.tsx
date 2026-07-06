@@ -61,16 +61,16 @@ export default function RegisterPage() {
 
   return (
     <div className="mx-auto mt-16 max-w-md px-4">
-      <div className="rounded-xl border bg-card p-8 shadow-sm">
-        <h1 className="text-2xl font-bold">{t('createAccount') || 'Create Account'}</h1>
-        <p className="mt-1 text-muted-foreground text-sm">
+      <div className="rounded-xl border border-surface-border bg-surface p-8 shadow-sm">
+        <h1 className="text-2xl font-bold text-text-primary">{t('createAccount') || 'Create Account'}</h1>
+        <p className="mt-1 text-text-muted text-sm">
           {t('registerSubtitle') || 'Fill in the form below to get started.'}
         </p>
 
         <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-4">
           <div className="space-y-1">
             <div className="relative">
-              <User className="text-muted-foreground absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" />
+              <User className="text-text-muted absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" />
               <Input
                 {...register('name')}
                 type="text"
@@ -79,13 +79,13 @@ export default function RegisterPage() {
               />
             </div>
             {errors.name && (
-              <p className="text-destructive text-xs">{errors.name.message}</p>
+              <p className="text-danger text-xs">{errors.name.message}</p>
             )}
           </div>
 
           <div className="space-y-1">
             <div className="relative">
-              <Mail className="text-muted-foreground absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" />
+              <Mail className="text-text-muted absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" />
               <Input
                 {...register('email')}
                 type="email"
@@ -94,13 +94,13 @@ export default function RegisterPage() {
               />
             </div>
             {errors.email && (
-              <p className="text-destructive text-xs">{errors.email.message}</p>
+              <p className="text-danger text-xs">{errors.email.message}</p>
             )}
           </div>
 
           <div className="space-y-1">
             <div className="relative">
-              <Phone className="text-muted-foreground absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" />
+              <Phone className="text-text-muted absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" />
               <Input
                 {...register('phone')}
                 type="tel"
@@ -109,13 +109,13 @@ export default function RegisterPage() {
               />
             </div>
             {errors.phone && (
-              <p className="text-destructive text-xs">{errors.phone.message}</p>
+              <p className="text-danger text-xs">{errors.phone.message}</p>
             )}
           </div>
 
           <div className="space-y-1">
             <div className="relative">
-              <Lock className="text-muted-foreground absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" />
+              <Lock className="text-text-muted absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" />
               <Input
                 {...register('password')}
                 type={showPassword ? 'text' : 'password'}
@@ -125,7 +125,7 @@ export default function RegisterPage() {
               <button
                 type="button"
                 onClick={() => setShowPassword((prev) => !prev)}
-                className="text-muted-foreground absolute right-3 top-1/2 -translate-y-1/2"
+                className="text-text-muted absolute right-3 top-1/2 -translate-y-1/2"
               >
                 {showPassword ? (
                   <EyeOff className="h-4 w-4" />
@@ -135,13 +135,13 @@ export default function RegisterPage() {
               </button>
             </div>
             {errors.password && (
-              <p className="text-destructive text-xs">{errors.password.message}</p>
+              <p className="text-danger text-xs">{errors.password.message}</p>
             )}
           </div>
 
           <div className="space-y-1">
             <div className="relative">
-              <Lock className="text-muted-foreground absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" />
+              <Lock className="text-text-muted absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" />
               <Input
                 {...register('confirmPassword')}
                 type={showConfirmPassword ? 'text' : 'password'}
@@ -151,7 +151,7 @@ export default function RegisterPage() {
               <button
                 type="button"
                 onClick={() => setShowConfirmPassword((prev) => !prev)}
-                className="text-muted-foreground absolute right-3 top-1/2 -translate-y-1/2"
+                className="text-text-muted absolute right-3 top-1/2 -translate-y-1/2"
               >
                 {showConfirmPassword ? (
                   <EyeOff className="h-4 w-4" />
@@ -161,12 +161,12 @@ export default function RegisterPage() {
               </button>
             </div>
             {errors.confirmPassword && (
-              <p className="text-destructive text-xs">{errors.confirmPassword.message}</p>
+              <p className="text-danger text-xs">{errors.confirmPassword.message}</p>
             )}
           </div>
 
           {apiError && (
-            <p className="text-destructive text-sm">{apiError}</p>
+            <p className="text-danger text-sm">{apiError}</p>
           )}
 
           <Button type="submit" className="w-full" disabled={isSubmitting}>
@@ -174,9 +174,9 @@ export default function RegisterPage() {
           </Button>
         </form>
 
-        <p className="mt-4 text-center text-sm text-muted-foreground">
+        <p className="mt-4 text-center text-sm text-text-muted">
           Already have an account?{' '}
-          <Link href="/login" className="font-medium text-primary hover:underline">
+          <Link href="/login" className="font-medium text-primary-500 hover:underline">
             Sign In
           </Link>
         </p>
