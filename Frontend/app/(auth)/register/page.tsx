@@ -31,7 +31,7 @@ type RegisterFormData = z.infer<typeof registerSchema>
 export default function RegisterPage() {
   const t = useTranslations('auth')
   const router = useRouter()
-  const { login } = useAuth()
+  const { register: authRegister } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [apiError, setApiError] = useState<string | null>(null)
@@ -47,13 +47,12 @@ export default function RegisterPage() {
   const onSubmit = async (data: RegisterFormData) => {
     setApiError(null)
     try {
-      await api.post('/auth/register', {
+      await authRegister({
         name: data.name,
         email: data.email,
         phone: data.phone,
         password: data.password,
       })
-      await login(data.email, data.password)
       router.push('/')
     } catch {
       setApiError('Registration failed. Please try again.')
