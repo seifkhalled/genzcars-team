@@ -164,3 +164,27 @@ services:
       - cars_net
     depends_on:
       - prometheus
+      - loki
+
+  # ── LOKI — log aggregation ─────────────────────────────────────
+  loki:
+    image: grafana/loki:latest
+    container_name: cars_loki
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    networks:
+      - cars_net
+    command: -config.file=/etc/loki/local-config.yaml
+
+  # ── PROMTAIL — log collector ───────────────────────────────────
+  promtail:
+    image: grafana/promtail:latest
+    container_name: cars_promtail
+    restart: unless-stopped
+    volumes:
+      - ./loki/promtail.yml:/etc/promtail/promtail.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - cars_net
+    command: -config.file=/etc/promtail/promtail.yml

@@ -43,6 +43,7 @@ Visit **http://localhost** — the full app should be live.
 | http://localhost:8001/docs | Chatbot Swagger UI |
 | http://localhost:8002/docs | Comparison Swagger UI |
 | http://localhost:9090 | Prometheus |
+| http://localhost:3100 | Loki |
 | http://localhost:3001 | Grafana (admin/admin) |
 
 ## Daily Commands
@@ -73,7 +74,8 @@ Each Python service exposes Prometheus metrics at `/metrics`:
 **Prometheus** scrapes all three every 15s and is available at http://localhost:9090.
 
 **Grafana** at http://localhost:3001 (admin/admin) comes pre-provisioned:
-- A Prometheus datasource auto-connected
+- A **Prometheus** datasource auto-connected
+- A **Loki** datasource auto-connected
 - A **FastAPI Service Overview** dashboard with:
   - Requests per second
   - Request duration (p50, p95, p99)
@@ -81,17 +83,27 @@ Each Python service exposes Prometheus metrics at `/metrics`:
 
 You can add more dashboards via the Grafana UI — they will persist as long as the container volume exists.
 
+### Logs (Loki + Promtail)
+
+All container stdout/stderr is automatically collected by **Promtail** (which reads the Docker socket) and shipped to **Loki**. In Grafana, open **Explore** → select **Loki** datasource → query with:
+
+```
+{container="cars_backend"}
+```
+
+Or browse labels in the **Log labels** dropdown (`container`, `service`, `stream`).
+
 ## Architecture
 
 ```
-Browser ──> nginx (:80)              Prometheus ──> Grafana
-                │                        │
-        ┌───────┼───────────────┐  ┌─────┼─────┐
-        │       │               │  │     │     │
-    frontend  /api/*      SSE routes │     │     │
-    (:3000)    │               │  │     │     │
-            backend      backend  │     │     │
-            (:8000)     (chat/compare) │     │
+Browser ──> nginx (:80)              Prometheus            Loki
+                │                        │                   ▲
+        ┌───────┼───────────────┐  ┌─────┼─────┐       ┌─────┴──────┐
+        │       │               │  │     │     │       │  Promtail  │
+    frontend  /api/*      SSE routes │     │     │  (docker.sock)
+    (:3000)    │               │  │     │     │       │            │
+            backend      backend  │     │     │  collects stdout
+            (:8000)     (chat/compare) │     │  from all containers
                │               │  │     │     │
         ┌──────┴──────┐        │  │     │     │
     chatbot     comparison     │  │     │     │
@@ -99,13 +111,18 @@ Browser ──> nginx (:80)              Prometheus ──> Grafana
                 │               │  │     │     │
                 └───────────────┘  └─────┴─────┘
                  /metrics endpoints   scrape :8000,:8001,:8002
+                                                        \
+                                                    Grafana
+                                              (Prometheus + Loki
+                                                datasources)
 ```
 
 - All internal traffic uses container names (`backend:8000`, `chatbot:8001`)
 - Browser calls `http://localhost` — nginx routes to the right service
 - SSE routes (`/api/v1/chat/`, `/api/v1/compare`) have `proxy_buffering off`
 - Chat SSE timeout: 3600s. Compare SSE timeout: 180s.
-- Prometheus scrapes `/metrics` on each Python service; Grafana queries Prometheus
+- Prometheus scrapes `/metrics` on each Python service
+- Promtail tails all container logs → Loki → Grafana Explore
 
 ## Architecture Diagrams
 
