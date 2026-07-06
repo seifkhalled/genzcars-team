@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 from typing import AsyncGenerator
 
 from app.schemas.request import CompareRequest
@@ -7,21 +8,30 @@ from app.pipeline.analyzer import analyze_car
 from app.pipeline.comparator import compare
 from app.pipeline.report_builder import build_report
 
+CACHE_TTL = 3600
+
+
+def _make_cache_key(request: CompareRequest) -> str:
+    ids_key = hashlib.md5("_".join(sorted(request.ad_ids)).encode()).hexdigest()
+    return f"compare:{ids_key}:{request.language}"
+
 
 async def run(request: CompareRequest, app_state) -> AsyncGenerator[dict, None]:
-    cache_key = frozenset(request.ad_ids)
-    if cache_key in app_state.report_cache:
-        cached = app_state.report_cache[cache_key]
-        yield {"type": "report", "content": cached}
-        yield {"type": "done", "content": None}
-        return
+    cache_key = _make_cache_key(request)
+
+    redis = getattr(app_state, "redis", None)
+    if redis:
+        cached = await redis.get_json(cache_key)
+        if cached is not None:
+            yield {"type": "report", "content": cached}
+            yield {"type": "done", "content": None}
+            return
 
     pool = app_state.pool
     openrouter_llm = app_state.llm
     groq_llm = app_state.groq_llm
     tavily = app_state.tavily
 
-    # Stage 1: Fetch ads
     yield {"type": "status", "content": "Loading car details..."}
     try:
         ads = await fetch_ads_for_comparison(pool, request.ad_ids)
@@ -30,7 +40,6 @@ async def run(request: CompareRequest, app_state) -> AsyncGenerator[dict, None]:
         yield {"type": "done", "content": None}
         return
 
-    # Stage 2: Concurrent Tavily research
     research_tasks = []
     for ad in ads:
         yield {"type": "status", "content": f"Researching {ad['brand']} {ad['model']}..."}
@@ -52,7 +61,6 @@ async def run(request: CompareRequest, app_state) -> AsyncGenerator[dict, None]:
         else:
             processed_results.append(r)
 
-    # Stage 3: Parallel LLM analysis per car
     yield {"type": "status", "content": f"Analyzing {len(ads)} cars..."}
 
     async def _analyze_one(ad: dict, research: dict) -> dict | None:
@@ -80,7 +88,6 @@ async def run(request: CompareRequest, app_state) -> AsyncGenerator[dict, None]:
             },
         }
 
-    # Stage 4: Single LLM comparison call
     yield {"type": "status", "content": "Writing final verdict..."}
     try:
         comparison_result = await compare(car_analyses, openrouter_llm, groq_llm, request.language)
@@ -89,14 +96,10 @@ async def run(request: CompareRequest, app_state) -> AsyncGenerator[dict, None]:
         yield {"type": "done", "content": None}
         return
 
-    # Stage 5: Assemble report
     report = build_report(ads, car_analyses, comparison_result, processed_results)
 
-    # Cache the report
-    app_state.report_cache[cache_key] = report
-    if len(app_state.report_cache) >= 50:
-        oldest_key = next(iter(app_state.report_cache))
-        del app_state.report_cache[oldest_key]
+    if redis:
+        await redis.set_json(cache_key, report, ttl=CACHE_TTL)
 
     yield {"type": "report", "content": report}
     yield {"type": "done", "content": None}

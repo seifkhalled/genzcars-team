@@ -44,6 +44,7 @@ Visit **http://localhost** — the full app should be live.
 | http://localhost:8002/docs | Comparison Swagger UI |
 | http://localhost:9090 | Prometheus |
 | http://localhost:3100 | Loki |
+| redis://localhost:6379 | Redis |
 | http://localhost:3001 | Grafana (admin/admin) |
 
 ## Daily Commands

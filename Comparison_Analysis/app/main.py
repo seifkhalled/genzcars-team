@@ -11,6 +11,7 @@ from app.config import settings
 from app.core.llm import get_llm
 from app.core.openrouter import get_openrouter_llm
 from app.core.tavily import TavilyWrapper
+from app.core.cache import RedisClient
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.routers import compare as compare_router
@@ -27,6 +28,10 @@ async def lifespan(app: FastAPI):
     pool = await asyncpg.create_pool(dsn=dsn, min_size=1, max_size=5)
     app.state.pool = pool
 
+    redis_client = RedisClient(settings.redis_url)
+    await redis_client.init()
+    app.state.redis = redis_client
+
     app.state.llm = get_openrouter_llm()
     app.state.groq_llm = get_llm()
     app.state.tavily = TavilyWrapper(settings.tavily_api_key)
@@ -37,6 +42,8 @@ async def lifespan(app: FastAPI):
     yield
 
     logger.info("Comparison service shutting down...")
+    if app.state.redis:
+        await app.state.redis.close()
     if pool:
         await pool.close()
 

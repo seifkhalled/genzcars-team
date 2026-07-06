@@ -11,6 +11,7 @@ from qdrant_client.http import models as qmodels
 from app.config import settings
 from app.core.middleware import setup_cors
 from app.core.llm import get_llm
+from app.core.cache import RedisClient
 from app.core.exceptions import (
     NotFoundException,
     UnauthorizedException,
@@ -31,6 +32,12 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     logger.info("Starting up...")
     app.state.db = await create_pool()
+    if settings.redis_url:
+        redis_client = RedisClient(settings.redis_url)
+        await redis_client.init()
+        app.state.redis = redis_client
+    else:
+        app.state.redis = None
     try:
         async with app.state.db.acquire() as conn:
             await conn.execute(
@@ -217,6 +224,8 @@ async def lifespan(app: FastAPI):
 
     yield
     logger.info("Shutting down...")
+    if app.state.redis:
+        await app.state.redis.close()
     if app.state.db:
         await app.state.db.close()
 

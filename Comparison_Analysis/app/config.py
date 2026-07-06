@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     openrouter_api_key_fallback: str = ""
     openrouter_model: str = "google/gemini-2.0-flash-exp:free"
 
+    redis_url: str = "redis://redis:6379/0"
+
     environment: str = "development"
     comparison_port: int = 8002
 

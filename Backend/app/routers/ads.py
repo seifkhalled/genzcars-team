@@ -57,7 +57,14 @@ async def list_ads(
 @router.get("/brand-counts")
 async def brand_counts(
     pool: asyncpg.Pool = Depends(get_db),
+    request: Request = None,
 ):
+    redis = getattr(request.app.state, "redis", None) if request else None
+    if redis:
+        cached = await redis.get_json("cache:brand-counts")
+        if cached is not None:
+            return cached
+
     brands = await ads_queries.get_brand_counts(pool)
     supabase_url = settings.supabase_url.rstrip("/")
     bucket = settings.supabase_brand_images_bucket
@@ -71,7 +78,10 @@ async def brand_counts(
             "count": b["count"],
             "logo_url": logo_url,
         })
-    return {"brands": result}
+    payload = {"brands": result}
+    if redis:
+        await redis.set_json("cache:brand-counts", payload, ttl=300)
+    return payload
 
 
 @router.get("/{ad_id}", response_model=AdResponse)
@@ -162,6 +172,8 @@ async def create_ad(
         ad_id, ad, cover_url,
     )
 
+    if (redis := getattr(request.app.state, "redis", None)):
+        await redis.delete("cache:brand-counts")
     return await get_ad_response(pool, ad, user_id)
 
 
@@ -199,6 +211,8 @@ async def update_ad(
             ad_id, updated, cover_url,
         )
 
+    if (redis := getattr(request.app.state, "redis", None)):
+        await redis.delete("cache:brand-counts")
     return await get_ad_response(pool, updated, user_id)
 
 
@@ -222,6 +236,8 @@ async def delete_ad(
         delete_ad_from_qdrant, pool, request.app.state.qdrant, ad_id
     )
 
+    if (redis := getattr(request.app.state, "redis", None)):
+        await redis.delete("cache:brand-counts")
     return {"message": "ad deleted"}
 
 

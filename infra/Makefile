@@ -18,6 +18,7 @@ up:
 	@echo "  Comparison:  http://localhost:8002/docs"
 	@echo "  Prometheus:  http://localhost:9090"
 	@echo "  Loki:        http://localhost:3100"
+	@echo "  Redis:       redis://localhost:6379"
 	@echo "  Grafana:     http://localhost:3001 (admin/admin)"
 
 up-logs:

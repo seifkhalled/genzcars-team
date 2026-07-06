@@ -135,6 +135,21 @@ services:
       - chatbot
       - comparison
 
+  # ── REDIS — cache ──────────────────────────────────────────────
+  redis:
+    image: redis:alpine
+    container_name: cars_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - cars_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
   # ── PROMETHEUS — metrics scraper ───────────────────────────────
   prometheus:
     image: prom/prometheus:latest

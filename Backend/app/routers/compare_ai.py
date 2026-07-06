@@ -32,12 +32,31 @@ async def compare_ai(
     request: Request,
     pool: asyncpg.Pool = Depends(get_db),
 ):
+    redis = getattr(request.app.state, "redis", None)
+    cache_key = f"cache:compare-ai:{body.ad_id_1}:{body.ad_id_2}"
+
+    if redis:
+        cached = await redis.get_json(cache_key)
+        if cached is not None:
+            async def stream_cached():
+                for event in cached:
+                    yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+            return StreamingResponse(
+                stream_cached(),
+                media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+            )
+
     llm = request.app.state.llm
     service = ComparisonService(pool=pool, llm=llm)
+    events = []
 
     async def event_stream():
         async for event in service.run(body.ad_id_1, body.ad_id_2):
+            events.append(event)
             yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+        if redis:
+            await redis.set_json(cache_key, events, ttl=1800)
 
     return StreamingResponse(
         event_stream(),
