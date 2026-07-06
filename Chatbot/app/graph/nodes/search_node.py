@@ -3,6 +3,7 @@ import logging
 from uuid import UUID
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
+from app.enums import TaskType
 from app.graph.state import CarsChatState
 from app.core.hallucination_guard import verify_results
 from app.data.car_features import format_expansions_prompt
@@ -122,7 +123,7 @@ async def search_node(state: CarsChatState, config: RunnableConfig) -> dict:
         expansions_prompt=format_expansions_prompt(),
     ))
     if llm_router:
-        query_response = await llm_router.ainvoke_task("search", [system_msg, HumanMessage(content=last_message)])
+        query_response = await llm_router.ainvoke_task(TaskType.SEARCH, [system_msg, HumanMessage(content=last_message)])
     else:
         query_response = await llm_fast.ainvoke([system_msg, HumanMessage(content=last_message)])
 
@@ -317,7 +318,7 @@ async def search_node(state: CarsChatState, config: RunnableConfig) -> dict:
         HumanMessage(content=last_message),
     ]
     if llm_router:
-        async for chunk in llm_router.astream_task("search", response_msgs):
+        async for chunk in llm_router.astream_task(TaskType.SEARCH, response_msgs):
             content = chunk.content if hasattr(chunk, "content") else str(chunk)
             streamed_text += content
     else:

@@ -1,5 +1,6 @@
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
+from app.enums import NodeName
 from app.graph.state import CarsChatState
 from app.graph.nodes.preference_extractor import preference_extractor_node
 from app.graph.router import router_node
@@ -14,7 +15,7 @@ from app.graph.nodes.responder_node import responder_node
 
 
 def route_after_catalogue(state: CarsChatState) -> str:
-    return state.get("next_node", "search_node")
+    return state.get("next_node", NodeName.SEARCH)
 
 
 def build_graph() -> "CompiledGraph":
@@ -41,45 +42,45 @@ def build_graph() -> "CompiledGraph":
     # ────────────────────────────────────────────────────────────────────────
     builder = StateGraph(CarsChatState)
 
-    builder.add_node("preference_extractor", preference_extractor_node)
-    builder.add_node("router", router_node)
-    builder.add_node("catalogue_node", catalogue_node)
-    builder.add_node("search_node", search_node)
-    builder.add_node("recommendation_node", recommendation_node)
-    builder.add_node("advisor_node", advisor_node)
-    builder.add_node("seller_node", seller_node)
-    builder.add_node("guide_node", guide_node)
-    builder.add_node("general_node", general_node)
-    builder.add_node("responder_node", responder_node)
+    builder.add_node(NodeName.PREFERENCE_EXTRACTOR, preference_extractor_node)
+    builder.add_node(NodeName.ROUTER, router_node)
+    builder.add_node(NodeName.CATALOGUE, catalogue_node)
+    builder.add_node(NodeName.SEARCH, search_node)
+    builder.add_node(NodeName.RECOMMENDATION, recommendation_node)
+    builder.add_node(NodeName.ADVISOR, advisor_node)
+    builder.add_node(NodeName.SELLER, seller_node)
+    builder.add_node(NodeName.GUIDE, guide_node)
+    builder.add_node(NodeName.GENERAL, general_node)
+    builder.add_node(NodeName.RESPONDER, responder_node)
 
-    builder.set_entry_point("preference_extractor")
-    builder.add_edge("preference_extractor", "router")
+    builder.set_entry_point(NodeName.PREFERENCE_EXTRACTOR)
+    builder.add_edge(NodeName.PREFERENCE_EXTRACTOR, NodeName.ROUTER)
 
     builder.add_conditional_edges(
-        "router",
+        NodeName.ROUTER,
         lambda state: state["next_node"],
         {
-            "catalogue_node": "catalogue_node",
-            "advisor_node": "advisor_node",
-            "seller_node": "seller_node",
-            "guide_node": "guide_node",
-            "general_node": "general_node",
+            NodeName.CATALOGUE: NodeName.CATALOGUE,
+            NodeName.ADVISOR: NodeName.ADVISOR,
+            NodeName.SELLER: NodeName.SELLER,
+            NodeName.GUIDE: NodeName.GUIDE,
+            NodeName.GENERAL: NodeName.GENERAL,
         }
     )
 
     builder.add_conditional_edges(
-        "catalogue_node",
+        NodeName.CATALOGUE,
         route_after_catalogue,
         {
-            "search_node": "search_node",
-            "recommendation_node": "recommendation_node",
+            NodeName.SEARCH: NodeName.SEARCH,
+            NodeName.RECOMMENDATION: NodeName.RECOMMENDATION,
         }
     )
 
-    for node in ["search_node", "recommendation_node", "advisor_node", "seller_node", "guide_node", "general_node"]:
-        builder.add_edge(node, "responder_node")
+    for node in [NodeName.SEARCH, NodeName.RECOMMENDATION, NodeName.ADVISOR, NodeName.SELLER, NodeName.GUIDE, NodeName.GENERAL]:
+        builder.add_edge(node, NodeName.RESPONDER)
 
-    builder.add_edge("responder_node", END)
+    builder.add_edge(NodeName.RESPONDER, END)
 
     checkpointer = MemorySaver()
     return builder.compile(checkpointer=checkpointer)

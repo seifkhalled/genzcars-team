@@ -1,5 +1,6 @@
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
+from app.enums import NodeName, TaskType
 from app.graph.state import CarsChatState
 
 
@@ -58,7 +59,7 @@ async def router_node(state: CarsChatState, config: RunnableConfig) -> dict:
     ) or "none yet"
 
     if llm_router:
-        response = await llm_router.ainvoke_task("router", [
+        response = await llm_router.ainvoke_task(TaskType.ROUTER, [
             SystemMessage(content=ROUTER_SYSTEM.format(
                 message_history=message_history,
                 has_context="yes" if state.get("context_ad_id") else "no",
@@ -80,11 +81,11 @@ async def router_node(state: CarsChatState, config: RunnableConfig) -> dict:
             HumanMessage(content=last_message),
         ])
 
-    node_name = response.content.strip().lower() if response.content else "general_node"
+    node_name = response.content.strip().lower() if response.content else NodeName.GENERAL
 
-    valid_nodes = {"catalogue_node", "advisor_node", "seller_node", "guide_node", "general_node"}
+    valid_nodes = {NodeName.CATALOGUE, NodeName.ADVISOR, NodeName.SELLER, NodeName.GUIDE, NodeName.GENERAL}
     if node_name not in valid_nodes:
-        node_name = "general_node"
+        node_name = NodeName.GENERAL
 
     intent_history = state.get("intent_history", []) + [node_name]
 
@@ -95,7 +96,7 @@ async def router_node(state: CarsChatState, config: RunnableConfig) -> dict:
         "node_response": "",
     }
 
-    if node_name == "catalogue_node":
+    if node_name == NodeName.CATALOGUE:
         result["retrieved_ads"] = []
         result["similar_ads"] = []
         result["price_analysis"] = None

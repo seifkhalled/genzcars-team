@@ -1,4 +1,5 @@
 import json
+from app.enums import NodeName
 
 # ---- Search quality thresholds ----
 SEARCH_QUALITY_TOP_SCORE_MIN = 0.65
@@ -28,13 +29,13 @@ RESPONDER_TOKEN_DELAY_SECONDS = 0.02
 
 # ---- Node status messages ----
 NODE_STATUS_MAP = {
-    "catalogue_node": "Checking our catalogue...",
-    "search_node": "Searching listings...",
-    "recommendation_node": "Finding alternatives...",
-    "advisor_node": "Analyzing this car...",
-    "seller_node": "Analyzing market data...",
-    "guide_node": "Looking that up...",
-    "general_node": "",
+    NodeName.CATALOGUE: "Checking our catalogue...",
+    NodeName.SEARCH: "Searching listings...",
+    NodeName.RECOMMENDATION: "Finding alternatives...",
+    NodeName.ADVISOR: "Analyzing this car...",
+    NodeName.SELLER: "Analyzing market data...",
+    NodeName.GUIDE: "Looking that up...",
+    NodeName.GENERAL: "",
 }
 
 

@@ -1,5 +1,6 @@
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
+from app.enums import TaskType
 from app.graph.state import CarsChatState
 from app.data.website_guide import format_website_guide
 
@@ -40,7 +41,7 @@ async def guide_node(state: CarsChatState, config: RunnableConfig) -> dict:
         HumanMessage(content=last_message),
     ]
     if llm_router:
-        topic_response = await llm_router.ainvoke_task("guide_topic", topic_msgs)
+        topic_response = await llm_router.ainvoke_task(TaskType.GUIDE_TOPIC, topic_msgs)
     else:
         topic_response = await llm_fast.ainvoke(topic_msgs)
     detected_topic = topic_response.content.strip().lower() if topic_response.content else "other"
@@ -56,7 +57,7 @@ async def guide_node(state: CarsChatState, config: RunnableConfig) -> dict:
         HumanMessage(content=last_message),
     ]
     if llm_router:
-        async for chunk in llm_router.astream_task("guide", response_msgs):
+        async for chunk in llm_router.astream_task(TaskType.GUIDE, response_msgs):
             content = chunk.content if hasattr(chunk, "content") else str(chunk)
             streamed_text += content
     else:

@@ -2,6 +2,7 @@ import json
 import logging
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
+from app.enums import TaskType
 from app.graph.state import CarsChatState
 from app.data.constants import RECOMMENDATION_LIMIT
 
@@ -187,7 +188,7 @@ async def recommendation_node(state: CarsChatState, config: RunnableConfig) -> d
         HumanMessage(content=last_message),
     ]
     if llm_router:
-        async for chunk in llm_router.astream_task("recommendation", response_msgs):
+        async for chunk in llm_router.astream_task(TaskType.RECOMMENDATION, response_msgs):
             content = chunk.content if hasattr(chunk, "content") else str(chunk)
             streamed_text += content
     else:

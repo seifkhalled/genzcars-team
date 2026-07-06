@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Deals Chatbot — Multi-Agent Architecture</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #1c2333;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-dim: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --orange: #d29922;
+    --red: #f85149;
+    --purple: #bc8cff;
+    --pink: #f778ba;
+    --cyan: #39d2c0;
+    --node-extract: #d2a8ff;
+    --node-router: #ffa657;
+    --node-agent: #58a6ff;
+    --node-search: #3fb950;
+    --node-respond: #f778ba;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 40px 24px;
+    line-height: 1.6;
+  }
+  .container { max-width: 1200px; margin: 0 auto; }
+
+  h1 { font-size: 2.2rem; margin-bottom: 4px; }
+  h1 small { font-size: 0.9rem; color: var(--text-dim); font-weight: 400; }
+  .subtitle { color: var(--text-dim); font-size: 1rem; margin-bottom: 32px; }
+
+  h2 { font-size: 1.5rem; margin: 40px 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 1.15rem; margin: 24px 0 12px; }
+  h4 { font-size: 1rem; margin: 16px 0 8px; color: var(--accent); }
+
+  .badge {
+    display: inline-block; font-size: 0.7rem; padding: 2px 8px; border-radius: 10px;
+    font-weight: 600; letter-spacing: 0.3px;
+  }
+  .badge-fastapi { background: #05966933; color: #34d399; }
+  .badge-langgraph { background: #7c3aed33; color: #a78bfa; }
+  .badge-langsmith { background: #0284c733; color: #38bdf8; }
+  .badge-mcp      { background: #b4530933; color: #fbbf24; }
+  .badge-qdrant   { background: #0891b233; color: #22d3ee; }
+  .badge-supabase { background: #15803d33; color: #4ade80; }
+  .badge-groq     { background: #9333ea33; color: #c084fc; }
+  .badge-enum     { background: #f9731633; color: #fb923c; }
+
+  .cards { display: grid; gap: 16px; margin: 16px 0; }
+  .cards-2 { grid-template-columns: repeat(auto-fit, minmax(340px,1fr)); }
+  .cards-3 { grid-template-columns: repeat(auto-fit, minmax(300px,1fr)); }
+  .cards-4 { grid-template-columns: repeat(auto-fit, minmax(240px,1fr)); }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 20px; transition: border-color .2s;
+  }
+  .card:hover { border-color: var(--accent); }
+  .card h4 { margin: 0 0 8px; }
+  .card p { color: var(--text-dim); font-size: 0.9rem; }
+
+  .diagram {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 32px 24px; margin: 20px 0; overflow-x: auto;
+  }
+  .graph-flow {
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    min-width: 760px;
+  }
+  .flow-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: center; }
+  .node {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 18px; border-radius: 8px; font-size: 0.85rem; font-weight: 600;
+    white-space: nowrap; border: 2px solid transparent; position: relative;
+  }
+  .node .sub { font-weight: 400; font-size: 0.7rem; opacity: .7; }
+  .node-extract  { background: #d2a8ff22; border-color: var(--node-extract); color: var(--node-extract); }
+  .node-router   { background: #ffa65722; border-color: var(--node-router); color: var(--node-router); }
+  .node-agent    { background: #58a6ff22; border-color: var(--node-agent); color: var(--node-agent); }
+  .node-search   { background: #3fb95022; border-color: var(--node-search); color: var(--node-search); }
+  .node-respond  { background: #f778ba22; border-color: var(--node-respond); color: var(--node-respond); }
+  .node-end      { background: #8b949e22; border-color: var(--text-dim); color: var(--text-dim); }
+  .node-langsmith { border-color: var(--cyan); color: var(--cyan); position: relative; }
+  .node-langsmith::after {
+    content: "LangSmith"; position: absolute; top: -18px; right: 0;
+    font-size: 0.6rem; color: var(--cyan); letter-spacing: 0.5px;
+  }
+  .arrow { color: var(--text-dim); font-size: 1.2rem; user-select: none; }
+  .arrow-label {
+    font-size: 0.65rem; color: var(--text-dim); background: var(--surface2);
+    padding: 2px 8px; border-radius: 4px; margin: 0 4px;
+  }
+  .branch { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .branch-inline { display: flex; align-items: center; gap: 8px; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 0; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; }
+  .legend-swatch {
+    width: 14px; height: 14px; border-radius: 4px; flex-shrink: 0;
+  }
+
+  table {
+    width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 0.88rem;
+  }
+  th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); }
+  th { background: var(--surface2); font-weight: 600; color: var(--text-dim); text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.5px; }
+  tr:hover td { background: var(--surface2); }
+  td code { background: var(--surface2); padding: 2px 6px; border-radius: 4px; font-size: 0.82rem; }
+
+  code { font-family: 'SF Mono', 'Cascadia Code', monospace; font-size: 0.85rem; }
+  pre {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 16px; overflow-x: auto; font-size: 0.82rem; line-height: 1.5; margin: 12px 0;
+  }
+  .hlk { color: var(--accent); }
+  .hlg { color: var(--green); }
+  .hlr { color: var(--red); }
+  .hly { color: var(--orange); }
+  .hlp { color: var(--purple); }
+  .hlc { color: var(--cyan); }
+
+  .note {
+    background: #58a6ff11; border-left: 3px solid var(--accent);
+    padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 12px 0;
+    font-size: 0.88rem;
+  }
+  .note-warn { background: #d2992211; border-left-color: var(--orange); }
+  .note-ok   { background: #3fb95011; border-left-color: var(--green); }
+
+  .flex-between { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+
+  .tag-group { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tag {
+    font-size: 0.7rem; padding: 2px 8px; border-radius: 4px;
+    background: var(--surface2); color: var(--text-dim);
+  }
+  .tag-accent { background: var(--accent); color: #000; font-weight: 600; }
+
+  hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>Deals Chatbot — Multi-Agent Architecture <small>v2.0.0</small></h1>
+<p class="subtitle">
+  LangGraph-powered multi-agent chatbot with hybrid search, MCP tool calling, type-safe enums, and LangSmith observability.
+</p>
+
+<!-- ═══════════════════════ 1. SERVICES ═══════════════════════ -->
+<h2>1. Service Topology</h2>
+<div class="cards cards-3">
+  <div class="card">
+    <div class="flex-between"><h4>Chatbot</h4> <span class="badge badge-fastapi">FastAPI :8001</span></div>
+    <p>The multi-agent brain. Hosts the LangGraph graph, all 10 agent nodes, LLM routing (<span class="badge badge-groq">Groq</span> + OpenRouter), embeddings (<span class="badge badge-qdrant">FastEmbed</span>), hybrid search, SSE streaming, and MCP tool servers.</p>
+  </div>
+  <div class="card">
+    <div class="flex-between"><h4>Backend</h4> <span class="badge badge-fastapi">FastAPI :8000</span></div>
+    <p>Car ads CRUD, auth, and SSE proxy (<code>/message</code> → Chatbot). Manages <span class="badge badge-supabase">Supabase</span> PostgreSQL for ads, favorites, and users.</p>
+  </div>
+  <div class="card">
+    <div class="flex-between"><h4>Comparison</h4> <span class="badge badge-fastapi">FastAPI :8002</span></div>
+    <p>Dedicated analysis pipeline: structured comparison, vision analysis, hallucination guard, and report generation.</p>
+  </div>
+  <div class="card">
+    <div class="flex-between"><h4>Frontend</h4> <span class="badge">Next.js</span></div>
+    <p>Next.js SSR app with bilingual (AR/EN) support. SSE consumer for chatbot streaming responses.</p>
+  </div>
+  <div class="card">
+    <div class="flex-between"><h4>Qdrant</h4> <span class="badge badge-qdrant">Vector DB</span></div>
+    <p>Cloud-hosted vector DB (<code>cars_ads</code>). Hybrid index: BM25 + dense vector. Stores car ad embeddings.</p>
+  </div>
+  <div class="card">
+    <div class="flex-between"><h4>Supabase</h4> <span class="badge badge-supabase">PostgreSQL</span></div>
+    <p>Persistent storage: <code>chat_messages</code>, <code>user_preferences</code>, <code>chat_sessions</code>, <code>ads</code>.</p>
+  </div>
+</div>
+
+<!-- ═══════════════════════ 2. ENUMS ═══════════════════════ -->
+<h2>2. Type-Safe Enums</h2>
+<p>
+  All node names and task types use <span class="badge badge-enum">str, Enum</span> from <code>app/enums.py</code>,
+  replacing bare string literals across the codebase. This prevents silent routing bugs
+  from typos and enables IDE autocompletion.
+</p>
+
+<div class="cards cards-2">
+  <div class="card">
+    <h4><code>NodeName</code> <span class="badge badge-enum">10 members</span></h4>
+    <p>Used in <code>builder.py</code>, <code>router.py</code>, <code>constants.py</code>, <code>responder_node.py</code>.</p>
+    <pre style="margin-top:8px;font-size:0.78rem;">class NodeName(str, Enum):
+    PREFERENCE_EXTRACTOR = "preference_extractor"
+    ROUTER               = "router"
+    CATALOGUE            = "catalogue_node"
+    SEARCH               = "search_node"
+    RECOMMENDATION       = "recommendation_node"
+    ADVISOR              = "advisor_node"
+    SELLER               = "seller_node"
+    GUIDE                = "guide_node"
+    GENERAL              = "general_node"
+    RESPONDER            = "responder_node"</pre>
+  </div>
+  <div class="card">
+    <h4><code>TaskType</code> <span class="badge badge-enum">11 members</span></h4>
+    <p>Used in <code>core/llm.py</code> for SIMPLE_TASKS / COMPLEX_TASKS classification, and across all 7+ node files for <code>ainvoke_task()</code> / <code>astream_task()</code> calls.</p>
+    <pre style="margin-top:8px;font-size:0.78rem;">class TaskType(str, Enum):
+    ROUTER               = "router"
+    PREFERENCE_EXTRACTOR = "preference_extractor"
+    SEARCH               = "search"
+    CATALOGUE_CHECK      = "catalogue_check"
+    GUIDE_TOPIC          = "guide_topic"
+    SEARCH_DECISION      = "search_decision"
+    ADVISOR              = "advisor"
+    SELLER               = "seller"
+    RECOMMENDATION       = "recommendation"
+    GENERAL              = "general"
+    COMPARISON           = "comparison"</pre>
+  </div>
+</div>
+
+<div class="note note-ok">
+  <strong>StrEnum behavior:</strong> Both enums extend <code>str, Enum</code>, so <code>NodeName.CATALOGUE == "catalogue_node"</code>,
+  <code>TaskType.SEARCH in SIMPLE_TASKS</code>, and <code>{"catalogue_node": x}.get(NodeName.CATALOGUE)</code> all work naturally.
+  No <code>.value</code> calls needed anywhere.
+</div>
+
+<!-- ═══════════════════════ 3. MULTI-AGENT GRAPH ═══════════════════════ -->
+<h2>3. LangGraph — Multi-Agent Graph</h2>
+<p>
+  The core chatbot logic is a <strong>10-node directed graph</strong> built with <span class="badge badge-langgraph">LangGraph</span>.
+  Each node is a specialist agent using <code>NodeName.*</code> enum values.
+</p>
+
+<div class="diagram">
+<div class="graph-flow">
+
+  <div class="flow-row">
+    <div class="node node-extract">
+      NodeName.PREFERENCE_EXTRACTOR
+      <span class="sub">(needs + explicit)</span>
+    </div>
+    <span class="arrow">&#8594;</span>
+    <div class="node node-router">NodeName.ROUTER <span class="sub">(LLM routing)</span></div>
+  </div>
+
+  <div class="flow-row" style="margin-top:4px;">
+    <span class="arrow" style="visibility:hidden;">&#8594;</span>
+    <span class="arrow">&#8600;</span>
+    <div class="branch">
+      <div class="branch-inline">
+        <div class="node node-agent">NodeName.CATALOGUE <span class="sub">(availability)</span></div>
+        <span class="arrow-label">conditional</span>
+        <div class="node node-search">NodeName.SEARCH <span class="sub">(hybrid search)</span></div>
+      </div>
+      <div class="branch-inline">
+        <span class="arrow-label">conditional</span>
+        <div class="node node-search">NodeName.RECOMMENDATION <span class="sub">(alternatives)</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow-row">
+    <span class="arrow" style="visibility:hidden;">&#8594;</span>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">
+      <div class="node node-agent">NodeName.ADVISOR <span class="sub">(listing eval)</span></div>
+      <div class="node node-agent">NodeName.SELLER <span class="sub">(pricing)</span></div>
+      <div class="node node-agent">NodeName.GUIDE <span class="sub">(website help)</span></div>
+      <div class="node node-agent">NodeName.GENERAL <span class="sub">(general QA)</span></div>
+    </div>
+  </div>
+
+  <div class="flow-row" style="margin-top:4px;">
+    <span class="arrow" style="visibility:hidden;">&#8594;</span>
+    <span class="arrow">&#8595;</span>
+    <div class="node node-respond">NodeName.RESPONDER <span class="sub">(SSE emitter)</span></div>
+    <span class="arrow">&#8594;</span>
+    <div class="node node-end">END</div>
+  </div>
+
+</div>
+</div>
+
+<h3>Node Reference</h3>
+<table>
+  <thead><tr><th>NodeName</th><th>File</th><th>Input</th><th>Output</th><th>LLM Calls (TaskType)</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>PREFERENCE_EXTRACTOR</code></td>
+      <td><code>nodes/preference_extractor.py</code></td>
+      <td><code>messages[-1]</code>, <code>preferences</code></td>
+      <td><code>preferences</code> (merged)</td>
+      <td>2x <span class="badge badge-groq">Groq</span> (<code>PREFERENCE_EXTRACTOR</code>)</td>
+    </tr>
+    <tr>
+      <td><code>ROUTER</code></td>
+      <td><code>graph/router.py</code></td>
+      <td><code>messages</code>, <code>preferences</code></td>
+      <td><code>next_node</code>, <code>intent</code></td>
+      <td>1x <span class="badge badge-groq">Groq</span> (<code>ROUTER</code>)</td>
+    </tr>
+    <tr>
+      <td><code>CATALOGUE</code></td>
+      <td><code>nodes/catalogue_node.py</code></td>
+      <td><code>messages[-1]</code>, <code>preferences</code></td>
+      <td><code>catalogue_check</code>, <code>next_node</code></td>
+      <td>1x <span class="badge badge-groq">Groq</span> (<code>CATALOGUE_CHECK</code>)</td>
+    </tr>
+    <tr>
+      <td><code>SEARCH</code></td>
+      <td><code>nodes/search_node.py</code></td>
+      <td><code>messages[-1]</code>, <code>preferences</code></td>
+      <td><code>retrieved_ads</code>, <code>node_response</code></td>
+      <td>1-2x <span class="badge badge-groq">Groq</span> (<code>SEARCH</code>)</td>
+    </tr>
+    <tr>
+      <td><code>RECOMMENDATION</code></td>
+      <td><code>nodes/recommendation_node.py</code></td>
+      <td><code>messages[-1]</code>, <code>catalogue_check</code></td>
+      <td><code>retrieved_ads</code>, <code>recommendations</code></td>
+      <td>1x <span class="badge badge-groq">Groq</span> (<code>RECOMMENDATION</code>)</td>
+    </tr>
+    <tr>
+      <td><code>ADVISOR</code></td>
+      <td><code>nodes/advisor_node.py</code></td>
+      <td><code>messages[-1]</code>, <code>context_ad_id</code></td>
+      <td><code>node_response</code>, <code>similar_ads</code></td>
+      <td>1-2x <span class="badge badge-groq">Groq</span> (<code>ADVISOR</code>, <code>PREFERENCE_EXTRACTOR</code>)</td>
+    </tr>
+    <tr>
+      <td><code>SELLER</code></td>
+      <td><code>nodes/seller_node.py</code></td>
+      <td><code>messages[-1]</code>, <code>preferences</code></td>
+      <td><code>node_response</code>, <code>price_analysis</code></td>
+      <td>1-2x <span class="badge badge-groq">Groq</span> (<code>SELLER</code>)</td>
+    </tr>
+    <tr>
+      <td><code>GUIDE</code></td>
+      <td><code>nodes/guide_node.py</code></td>
+      <td><code>messages[-1]</code></td>
+      <td><code>node_response</code></td>
+      <td>2x <span class="badge badge-groq">Groq</span> (<code>GUIDE_TOPIC</code>, <code>GUIDE</code>)</td>
+    </tr>
+    <tr>
+      <td><code>GENERAL</code></td>
+      <td><code>nodes/general_node.py</code></td>
+      <td><code>messages[-1]</code>, <code>preferences</code></td>
+      <td><code>node_response</code>, <code>preferences</code></td>
+      <td>2-3x <span class="badge badge-groq">Groq</span> (<code>SEARCH_DECISION</code>, <code>GENERAL</code>, <code>PREFERENCE_EXTRACTOR</code>)</td>
+    </tr>
+    <tr>
+      <td><code>RESPONDER</code></td>
+      <td><code>nodes/responder_node.py</code></td>
+      <td><code>node_response</code>, <code>retrieved_ads</code></td>
+      <td><code>messages</code> (AIMessage)</td>
+      <td>None (pure SSE emission)</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="note note-ok">
+  <strong>Key design principle:</strong> Every node receives <code>RunnableConfig</code> so dependencies (LLMs, Qdrant, SSE queue, DB pool) are injected at runtime — no global singletons inside nodes.
+</div>
+
+<!-- ═══════════════════════ 4. DATA FLOW ═══════════════════════ -->
+<h2>4. Request / Response Data Flow</h2>
+
+<h3>4.1 SSE Streaming Lifecycle</h3>
+<pre><span class="hlk">POST /message</span>
+<span class="hlc">┌─ Frontend (SSE consumer)</span>
+│
+▼
+<span class="hlk">Backend (:8000)</span>  &mdash; SSE proxy → <span class="hlk">Chatbot (:8001) /message</span>
+│
+├─ 1. Input guardrail (<code>validate_input</code>)
+├─ 2. Load history + preferences from <span class="hlg">Supabase</span>
+├─ 3. Build <span class="hly">RunnableConfig</span> with callbacks, metadata, tags
+├─ 4. Create SSE <span class="hlc">asyncio.Queue</span>
+│
+├─ 5. Launch <span class="hly">run_graph()</span> background task:
+│     └─ graph.astream(input_state, config, stream_mode=<span class="hlg">"updates"</span>)
+│         │
+│         ├─ [PREFERENCE_EXTRACTOR] → pushes queues, yields state update
+│         ├─ [ROUTER]               → pushes queues, yields state update
+│         ├─ [CATALOGUE]            → pushes queues, yields state update
+│         ├─ [SEARCH]               → pushes queues, yields state update
+│         ├─ [... specialist node]  → pushes queues, yields state update
+│         └─ [RESPONDER]            → pushes SSE events to queue
+│
+├─ 6. <span class="hlk">event_stream()</span> reads queue ←→ SSE data events:
+│     ├─ <span class="hlg">{type: "status", content: "Searching..."}</span>
+│     ├─ <span class="hlg">{type: "token", content: "Here are..."}</span>
+│     ├─ <span class="hlg">{type: "cars", content: [...]}</span>
+│     ├─ <span class="hlg">{type: "similar_cars", content: [...]}</span>
+│     ├─ <span class="hlg">{type: "price_analysis", content: {...}}</span>
+│     ├─ <span class="hlg">{type: "done"}</span>
+│     └─ <span class="hlg">{type: "usage_summary", content: {...}}</span>
+│
+└─ 7. Persist messages + preferences to <span class="hlg">Supabase</span> (fire-and-forget)</pre>
+
+<h3>4.2 SSE Event Types</h3>
+<table>
+  <thead><tr><th>Event</th><th>Payload</th><th>Source</th></tr></thead>
+  <tbody>
+    <tr><td><code>status</code></td><td>String like "Searching listings..."</td><td>responder_node (from <code>NODE_STATUS_MAP</code>)</td></tr>
+    <tr><td><code>token</code></td><td>Word-by-word text chunk (20ms delay)</td><td>responder_node (<code>send_tokens</code>)</td></tr>
+    <tr><td><code>cars</code></td><td>Array of ad objects (brand, model, price, images)</td><td>responder_node ← search/recommendation</td></tr>
+    <tr><td><code>new_match</code></td><td>Ads created since session start</td><td>responder_node ← search_node (proactive)</td></tr>
+    <tr><td><code>similar_cars</code></td><td>Up to 2 similar ads</td><td>responder_node ← advisor_node</td></tr>
+    <tr><td><code>price_analysis</code></td><td>Min/max/median/recommended prices</td><td>responder_node ← seller_node</td></tr>
+    <tr><td><code>error</code></td><td>Error message string</td><td>Graph error handler</td></tr>
+    <tr><td><code>done</code></td><td><code>null</code></td><td>responder_node (graph complete)</td></tr>
+    <tr><td><code>usage_summary</code></td><td>Token counts, cost, latency</td><td>CostTracker summary</td></tr>
+  </tbody>
+</table>
+
+<!-- ═══════════════════════ 5. TOOL CALLING ═══════════════════════ -->
+<h2>5. Tool Calling (MCP)</h2>
+
+<div class="cards cards-2">
+  <div class="card">
+    <h4><span class="badge badge-mcp">car-search</span> Server</h4>
+    <p><strong>Tools:</strong></p>
+    <ul style="color:var(--text-dim);font-size:0.88rem;padding-left:18px;">
+      <li><code>search_cars</code> — hybrid (BM25+vector) search with metadata filters</li>
+      <li><code>get_car_details</code> — full ad from PostgreSQL by UUID</li>
+      <li><code>find_similar_cars</code> — similar by brand/model/year</li>
+      <li><code>check_catalogue</code> — availability check for specific make/model</li>
+      <li><code>get_car_images</code> — image URLs for ad IDs</li>
+    </ul>
+    <p style="margin-top:8px;font-size:0.82rem;color:var(--text-dim);">Dependencies: QdrantSearch, Embedder, DB pool</p>
+  </div>
+  <div class="card">
+    <h4><span class="badge badge-mcp">analysis</span> Server</h4>
+    <p><strong>Tools:</strong></p>
+    <ul style="color:var(--text-dim);font-size:0.88rem;padding-left:18px;">
+      <li><code>analyze_market_price</code> — median/range from similar listings</li>
+      <li><code>web_search</code> — DuckDuckGo web search for market context</li>
+      <li><code>get_website_guide</code> — website feature reference for guide_node</li>
+      <li><code>expand_brand_origins</code> — "German car" → [BMW, Mercedes, VW]</li>
+      <li><code>expand_colloquial_terms</code> — slang → standard vocabulary</li>
+    </ul>
+    <p style="margin-top:8px;font-size:0.82rem;color:var(--text-dim);">Dependencies: QdrantSearch, Embedder, WebSearch</p>
+  </div>
+</div>
+
+<pre><span class="hlc">┌─────────────────────────────────────────────────────┐</span>
+<span class="hlc">│                  MCPToolRegistry                     │</span>
+<span class="hlc">│  ┌─────────────┐  ┌──────────────┐  ┌───────────┐ │</span>
+<span class="hlc">│  │ In-Process   │  │ stdio Client │  │ SSE Client │ │</span>
+<span class="hlc">│  │ _call_tool() │  │ (subprocess) │  │ (remote)   │ │</span>
+<span class="hlc">│  └──────┬──────┘  └──────────────┘  └───────────┘ │</span>
+<span class="hlc">└─────────┼───────────────────────────────────────────┘</span>
+<span class="hlc">          │</span>
+<span class="hlc"> ┌────────┴────────┐</span>
+<span class="hlc"> │  Graph Node     │</span>
+<span class="hlc"> │  (e.g. SEARCH)  │</span>
+<span class="hlc"> │  await mcp_     │</span>
+<span class="hlc"> │  registry.call_ │</span>
+<span class="hlc"> │  tool("search_  │</span>
+<span class="hlc"> │  cars", {...})  │</span>
+<span class="hlc"> └─────────────────┘</span></pre>
+
+<h3>Which Nodes Use Which Tools</h3>
+<table>
+  <thead><tr><th>NodeName</th><th>car-search Tools</th><th>analysis Tools</th><th>Direct Calls</th></tr></thead>
+  <tbody>
+    <tr><td><code>SEARCH</code></td><td><code>search_cars</code>, <code>get_car_images</code></td><td>&mdash;</td><td><code>embedder.encode</code>, <code>qdrant.hybrid_search</code></td></tr>
+    <tr><td><code>CATALOGUE</code></td><td><code>check_catalogue</code></td><td>&mdash;</td><td>DB queries (fallback)</td></tr>
+    <tr><td><code>RECOMMENDATION</code></td><td><code>search_cars</code>, <code>get_car_images</code></td><td>&mdash;</td><td><code>embedder.encode</code>, <code>qdrant.hybrid_search</code></td></tr>
+    <tr><td><code>ADVISOR</code></td><td><code>find_similar_cars</code></td><td><code>web_search</code></td><td><code>embedder.encode</code>, <code>qdrant.hybrid_search</code>, DB</td></tr>
+    <tr><td><code>SELLER</code></td><td><code>search_cars</code></td><td><code>analyze_market_price</code></td><td><code>embedder.encode</code>, <code>qdrant.hybrid_search</code>, <code>web_search.search</code></td></tr>
+    <tr><td><code>GENERAL</code></td><td>&mdash;</td><td><code>web_search</code></td><td><code>web_search.search</code></td></tr>
+    <tr><td><code>GUIDE</code></td><td>&mdash;</td><td>&mdash;</td><td>None (pure LLM + static data)</td></tr>
+    <tr><td><code>PREFERENCE_EXTRACTOR</code></td><td>&mdash;</td><td>&mdash;</td><td>DB upsert (fire-and-forget)</td></tr>
+  </tbody>
+</table>
+
+<!-- ═══════════════════════ 6. MEMORY & CONTEXT ═══════════════════════ -->
+<h2>6. Memory &amp; Context Management</h2>
+
+<div class="cards cards-3">
+  <div class="card">
+    <h4>Graph State <span class="badge">transient</span></h4>
+    <p><code>CarsChatState</code> holds: <code>messages</code> (add_messages reducer), <code>preferences</code>, <code>retrieved_ads</code>, <code>node_response</code>, <code>intent</code>, <code>turn_count</code>, <code>intent_history</code>. Reset per turn; previous turns loaded from DB.</p>
+  </div>
+  <div class="card">
+    <h4>Supabase <span class="badge badge-supabase">persistent</span></h4>
+    <p><code>chat_messages</code>: role, content, node_used, ad refs. <code>user_preferences</code>: all preference fields + intent_history + turn_count. Loaded at turn start, saved fire-and-forget.</p>
+  </div>
+  <div class="card">
+    <h4>MemorySaver <span class="badge badge-langgraph">checkpointer</span></h4>
+    <p>LangGraph's <code>MemorySaver()</code> for intra-stream state persistence. Not used for cross-turn persistence.</p>
+  </div>
+  <div class="card">
+    <h4>Semantic Cache <span class="badge">in-memory</span></h4>
+    <p><code>embedding_cache</code> (1000 entries, 2h TTL) and <code>llm_response_cache</code> (300 entries, 30min TTL). LRU eviction. Cacheable task types: <code>ROUTER</code>, <code>GUIDE_TOPIC</code>, <code>SEARCH_DECISION</code>.</p>
+  </div>
+  <div class="card">
+    <h4>Intent History <span class="badge">persistent</span></h4>
+    <p><code>intent_history</code> tracks which <code>NodeName</code> handled each turn (e.g. <code>["catalogue_node", "advisor_node"]</code>). Stored in <code>user_preferences</code>.</p>
+  </div>
+  <div class="card">
+    <h4>CostTracker <span class="badge">per-request</span></h4>
+    <p><code>BaseCallbackHandler</code> per turn. Tracks tokens, cost, latency per LLM call. Per-node tag via <code>set_node_tag()</code>.</p>
+  </div>
+</div>
+
+<!-- ═══════════════════════ 7. LLM ROUTING ═══════════════════════ -->
+<h2>7. LLM Routing &amp; Fallback</h2>
+
+<h3>MultiLLM Strategy</h3>
+<table>
+  <thead><tr><th>Category</th><th>TaskType Members</th><th>Primary Model</th><th>Fallback Chain</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><span class="badge" style="background:#3fb95033;color:#3fb950;">SIMPLE_TASKS</span></td>
+      <td><code>ROUTER</code>, <code>PREFERENCE_EXTRACTOR</code>, <code>GUIDE_TOPIC</code>, <code>SEARCH_DECISION</code>, <code>CATALOGUE_CHECK</code></td>
+      <td>Groq (fast): <code>openai/gpt-oss-120b</code>, temp=0</td>
+      <td>fast model only</td>
+    </tr>
+    <tr>
+      <td><span class="badge" style="background:#f778ba33;color:#f778ba;">COMPLEX_TASKS</span></td>
+      <td><code>ADVISOR</code>, <code>SELLER</code>, <code>SEARCH</code>, <code>RECOMMENDATION</code>, <code>GENERAL</code>, <code>COMPARISON</code></td>
+      <td>Groq (powerful): <code>qwen/qwen3.6-27b</code>, temp=0.3</td>
+      <td>Groq powerful → OpenRouter → Groq fast</td>
+    </tr>
+  </tbody>
+</table>
+
+<pre><span class="hlc">MultiLLM.ainvoke_task(task_type, messages)</span>
+│
+├─ task_type in SIMPLE_TASKS? → <span class="hlk">Groq fast</span> (no fallback, timeout 25s)
+│
+├─ task_type in COMPLEX_TASKS? → try in order:
+│     1. <span class="hlk">Groq powerful</span>    (fallback model, streaming=True)
+│     2. <span class="hlk">OpenRouter</span>       (nemotron-3-nano, fallback API key)
+│     3. <span class="hlk">Groq fast</span>        (last resort)
+│
+├─ <span class="hlg">Cache hit?</span> (cacheable: ROUTER, GUIDE_TOPIC, SEARCH_DECISION)
+│     → return cached LLMResult immediately
+│
+└─ <span class="hlr">All failed?</span> → raise RuntimeError("Service temporarily unavailable")</pre>
+
+<!-- ═══════════════════════ 8. LANGSMITH TRACING ═══════════════════════ -->
+<h2>8. LangSmith Observability</h2>
+
+<div class="diagram" style="border-color:var(--cyan);">
+<div class="graph-flow">
+  <div style="margin-bottom:12px;">
+    <span class="badge badge-langsmith">LangSmith Trace</span>
+    <span style="color:var(--text-dim);font-size:0.85rem;">&nbsp;&mdash; one parent trace per conversation turn</span>
+  </div>
+
+  <div style="display:flex;gap:4px;align-items:center;font-size:0.82rem;font-family:monospace;">
+    <span style="color:var(--cyan);">&#9500;&#9472;</span>
+    <span style="color:var(--cyan);">deals-chatbot-dev</span>
+    <span style="color:var(--text-dim);">(run_name, parent trace)</span>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:4px;padding-left:28px;font-size:0.82rem;font-family:monospace;">
+    <div><span style="color:var(--cyan);">&#9500;&#9472;</span> <span style="color:var(--node-extract);">preference_extractor</span></div>
+    <div style="padding-left:24px;"><span style="color:var(--cyan);">&#9492;&#9472;</span> <span style="color:var(--text-dim);">ChatGroq</span> (LLM call)</div>
+
+    <div><span style="color:var(--cyan);">&#9500;&#9472;</span> <span style="color:var(--node-router);">router</span></div>
+    <div style="padding-left:24px;"><span style="color:var(--cyan);">&#9492;&#9472;</span> <span style="color:var(--text-dim);">ChatGroq</span> (LLM call)</div>
+
+    <div style="color:var(--text-dim);">&#8942;</div>
+
+    <div><span style="color:var(--cyan);">&#9500;&#9472;</span> <span style="color:var(--node-search);">search_node</span></div>
+    <div style="padding-left:24px;">
+      <span style="color:var(--cyan);">&#9500;&#9472;</span> <span style="color:var(--text-dim);">ChatGroq</span> (query builder)<br>
+      <span style="color:var(--cyan);">&#9500;&#9472;</span> <span style="color:var(--text-dim);">Embedder.encode</span> <span class="tag">@traceable</span><br>
+      <span style="color:var(--cyan);">&#9500;&#9472;</span> <span style="color:var(--text-dim);">QdrantSearch.hybrid_search</span> <span class="tag">@traceable</span><br>
+      <span style="color:var(--cyan);">&#9492;&#9472;</span> <span style="color:var(--text-dim);">ChatGroq</span> (streaming response)
+    </div>
+
+    <div><span style="color:var(--cyan);">&#9500;&#9472;</span> <span style="color:var(--text-dim);">responder_node</span> <span style="color:var(--text-dim);">(no LLM calls)</span></div>
+    <div><span style="color:var(--cyan);">&#9492;&#9472;</span> <span style="color:var(--text-dim);">END</span></div>
+  </div>
+
+  <div style="margin-top:16px;font-size:0.78rem;color:var(--text-dim);">
+    <span class="badge badge-langsmith">Metadata</span>
+    <code style="background:var(--surface2);padding:4px 10px;border-radius:6px;">
+      { "session_id": "abc...", "conversation_id": "abc...",
+        "user_id": "uuid-...", "environment": "development" }
+    </code>
+    <span class="badge badge-langsmith" style="margin-left:8px;">Tags</span>
+    <code style="background:var(--surface2);padding:4px 10px;border-radius:6px;">
+      ["langgraph", "chat", "env:development"]
+    </code>
+  </div>
+</div>
+</div>
+
+<h3>Trace Coverage</h3>
+<div class="cards cards-2">
+  <div class="card">
+    <h4>Automatic (no code changes)</h4>
+    <ul style="color:var(--text-dim);font-size:0.88rem;padding-left:18px;">
+      <li>LangGraph <code>.astream()</code> parent run</li>
+      <li>Each node as child run (by <code>NodeName.value</code>)</li>
+      <li>All <code>ChatGroq</code> / <code>BaseChatModel</code> LLM invocations</li>
+      <li><code>OpenRouterChat._agenerate()</code></li>
+      <li>Errors propagate through callbacks before catch</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h4>Manual (<code>@traceable</code>)</h4>
+    <ul style="color:var(--text-dim);font-size:0.88rem;padding-left:18px;">
+      <li><code>Embedder.encode()</code> <span class="tag">run_type="embedding"</span></li>
+      <li><code>QdrantSearch.search()</code> + <code>hybrid_search()</code> <span class="tag">run_type="retriever"</span></li>
+      <li><code>WebSearch.search()</code> <span class="tag">run_type="tool"</span></li>
+      <li><code>validate_input()</code> <span class="tag">run_type="chain"</span></li>
+    </ul>
+  </div>
+</div>
+
+<!-- ═══════════════════════ 9. CODE MAP ═══════════════════════ -->
+<h2>9. Code Map</h2>
+<pre><span class="hlc">Chatbot/
+├── app/
+│   ├── main.py</span>                         <span class="hlc"># FastAPI entry, lifespan, graph build</span>
+<span class="hlc">│   ├── config.py</span>                        <span class="hlc"># Pydantic Settings (env vars + LangSmith)</span>
+<span class="hlc">│   ├── <span class="hly">enums.py</span></span>                       <span class="hlc"># NodeName + TaskType (str, Enum) → type safety across all files</span>
+│   ├── core/
+│   │   ├── llm.py</span>                       <span class="hlc"># MultiLLM with TaskType-based routing + fallback</span>
+│   │   ├── openrouter.py</span>                <span class="hlc"># LangChain BaseChatModel for OpenRouter</span>
+│   │   ├── embedder.py</span>                  <span class="hlc"># FastEmbed + @traceable</span>
+│   │   ├── qdrant.py</span>                    <span class="hlc"># QdrantSearch (hybrid + vector) + @traceable</span>
+│   │   ├── web_search.py</span>                <span class="hlc"># DuckDuckGo + @traceable</span>
+│   │   ├── cache.py</span>                     <span class="hlc"># SemanticCache (embedding + LLM)</span>
+│   │   ├── cost_tracker.py</span>              <span class="hlc"># BaseCallbackHandler for tokens/cost</span>
+│   │   ├── guardrails.py</span>                <span class="hlc"># Input safety + @traceable</span>
+│   │   ├── hallucination_guard.py</span>       <span class="hlc"># Grounding + response validation</span>
+│   │   ├── mcp_client.py</span>                <span class="hlc"># MCPToolRegistry</span>
+│   │   └── mcp/servers/
+│   │       ├── car_search_server.py</span>      <span class="hlc"># 5 car-search tools</span>
+│   │       └── analysis_server.py</span>        <span class="hlc"># 5 analysis tools</span>
+│   ├── graph/
+│   │   ├── state.py</span>                     <span class="hlc"># CarsChatState TypedDict</span>
+│   │   ├── builder.py</span>                   <span class="hlc"># StateGraph using <span class="hly">NodeName.*</span></span>
+│   │   ├── router.py</span>                    <span class="hlc"># LLM routing node using <span class="hly">NodeName.*</span> + <span class="hly">TaskType.*</span></span>
+│   │   └── nodes/
+│   │       ├── preference_extractor.py</span>   <span class="hlc"># TaskType.PREFERENCE_EXTRACTOR</span>
+│   │       ├── catalogue_node.py</span>         <span class="hlc"># TaskType.CATALOGUE_CHECK</span>
+│   │       ├── search_node.py</span>            <span class="hlc"># TaskType.SEARCH + TaskType.SEARCH_DECISION</span>
+│   │       ├── recommendation_node.py</span>    <span class="hlc"># TaskType.RECOMMENDATION</span>
+│   │       ├── advisor_node.py</span>           <span class="hlc"># TaskType.ADVISOR + TaskType.PREFERENCE_EXTRACTOR</span>
+│   │       ├── seller_node.py</span>            <span class="hlc"># TaskType.SELLER</span>
+│   │       ├── guide_node.py</span>             <span class="hlc"># TaskType.GUIDE_TOPIC + TaskType.GUIDE</span>
+│   │       ├── general_node.py</span>           <span class="hlc"># TaskType.GENERAL + TaskType.SEARCH_DECISION</span>
+│   │       └── responder_node.py</span>         <span class="hlc"># SSE emitter (uses NodeName in NODE_STATUS_MAP)</span>
+│   ├── routers/
+│   │   └── chat.py</span>                      <span class="hlc"># SSE endpoint + graph invocation</span>
+│   ├── data/
+│   │   └── constants.py</span>                 <span class="hlc"># Thresholds + <span class="hly">NODE_STATUS_MAP[NodeName.*]</span></span>
+│   └── db/</span>                              <span class="hlc"># PostgreSQL queries</span>
+├── requirements.txt</span>
+└── <span class="hlg">ARCHITECTURE.html</span>                   <span class="hlc"># This file</span></pre>
+
+<hr>
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;color:var(--text-dim);font-size:0.82rem;">
+  <span>Deals Chatbot v2.0.0 &mdash; Architecture Reference</span>
+  <span style="display:flex;gap:12px;">
+    <span class="badge badge-enum">Enums</span>
+    <span class="badge badge-langgraph">LangGraph</span>
+    <span class="badge badge-fastapi">FastAPI</span>
+    <span class="badge badge-langsmith">LangSmith</span>
+    <span class="badge badge-mcp">MCP</span>
+    <span class="badge badge-qdrant">Qdrant</span>
+    <span class="badge badge-supabase">Supabase</span>
+    <span class="badge badge-groq">Groq</span>
+  </span>
+</div>
+
+</div>
+</body>
+</html>

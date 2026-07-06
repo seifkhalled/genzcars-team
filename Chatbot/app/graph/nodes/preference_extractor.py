@@ -2,6 +2,7 @@ import json
 import logging
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
+from app.enums import TaskType
 from app.graph.state import CarsChatState
 from app.data.brand_origins import format_brand_origins_prompt
 
@@ -146,7 +147,7 @@ async def _inference_pass(message: str, prefs: dict, llm_router) -> dict | None:
         preferences_json=prefs_json,
     ))
     try:
-        response = await llm_router.ainvoke_task("preference_extractor", [
+        response = await llm_router.ainvoke_task(TaskType.PREFERENCE_EXTRACTOR, [
             system_msg,
             HumanMessage(content=message),
         ])
@@ -256,7 +257,7 @@ async def preference_extractor_node(state: CarsChatState, config: RunnableConfig
     )
 
     if llm_router:
-        response = await llm_router.ainvoke_task("preference_extractor", [
+        response = await llm_router.ainvoke_task(TaskType.PREFERENCE_EXTRACTOR, [
             SystemMessage(content=system_prompt),
             HumanMessage(content=last_message),
         ])

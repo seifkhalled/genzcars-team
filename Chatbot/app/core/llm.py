@@ -4,15 +4,16 @@ import logging
 from typing import Any, Optional
 from langchain_groq import ChatGroq
 from app.config import settings
+from app.enums import TaskType
 from app.core.openrouter import OpenRouterChat
 from app.core.cache import llm_response_cache
 
 logger = logging.getLogger(__name__)
 
-SIMPLE_TASKS = {"router", "preference_extractor", "guide_topic", "search_decision", "catalogue_check"}
-COMPLEX_TASKS = {"advisor", "seller", "search", "recommendation", "general", "comparison"}
+SIMPLE_TASKS = {TaskType.ROUTER, TaskType.PREFERENCE_EXTRACTOR, TaskType.GUIDE_TOPIC, TaskType.SEARCH_DECISION, TaskType.CATALOGUE_CHECK}
+COMPLEX_TASKS = {TaskType.ADVISOR, TaskType.SELLER, TaskType.SEARCH, TaskType.RECOMMENDATION, TaskType.GENERAL, TaskType.COMPARISON}
 
-_CACHEABLE_SIMPLE = {"router", "guide_topic", "search_decision"}
+_CACHEABLE_SIMPLE = {TaskType.ROUTER, TaskType.GUIDE_TOPIC, TaskType.SEARCH_DECISION}
 
 
 class MultiLLM:

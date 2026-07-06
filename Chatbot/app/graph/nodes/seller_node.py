@@ -2,6 +2,7 @@ import json
 import logging
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
+from app.enums import TaskType
 from app.graph.state import CarsChatState
 from app.data.constants import (
     SELLER_DEFAULT_YEAR_RANGE,
@@ -82,7 +83,7 @@ async def seller_node(state: CarsChatState, config: RunnableConfig) -> dict:
         HumanMessage(content=last_message),
     ]
     if llm_router:
-        extract_response = await llm_router.ainvoke_task("seller", extract_msgs)
+        extract_response = await llm_router.ainvoke_task(TaskType.SELLER, extract_msgs)
     else:
         extract_response = await llm_fast.ainvoke(extract_msgs)
 
@@ -200,7 +201,7 @@ async def seller_node(state: CarsChatState, config: RunnableConfig) -> dict:
         HumanMessage(content=last_message),
     ]
     if llm_router:
-        async for chunk in llm_router.astream_task("seller", response_msgs):
+        async for chunk in llm_router.astream_task(TaskType.SELLER, response_msgs):
             content = chunk.content if hasattr(chunk, "content") else str(chunk)
             streamed_text += content
     else:

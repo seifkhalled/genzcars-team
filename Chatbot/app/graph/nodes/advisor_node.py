@@ -3,6 +3,7 @@ import logging
 from uuid import UUID
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
+from app.enums import TaskType
 from app.graph.state import CarsChatState
 from app.core.hallucination_guard import build_grounding_block, validate_response
 
@@ -89,7 +90,7 @@ async def advisor_node(state: CarsChatState, config: RunnableConfig) -> dict:
                 HumanMessage(content=last_message),
             ]
             if llm_router:
-                pick_resp = await llm_router.ainvoke_task("advisor", pick_msgs)
+                pick_resp = await llm_router.ainvoke_task(TaskType.ADVISOR, pick_msgs)
             else:
                 pick_resp = await llm_fast.ainvoke(pick_msgs)
             try:
@@ -142,7 +143,7 @@ async def advisor_node(state: CarsChatState, config: RunnableConfig) -> dict:
         HumanMessage(content=last_message),
     ]
     if llm_router:
-        async for chunk in llm_router.astream_task("advisor", response_msgs):
+        async for chunk in llm_router.astream_task(TaskType.ADVISOR, response_msgs):
             content = chunk.content if hasattr(chunk, "content") else str(chunk)
             streamed_text += content
     else:
@@ -167,7 +168,7 @@ async def advisor_node(state: CarsChatState, config: RunnableConfig) -> dict:
             HumanMessage(content=last_message),
         ]
         if llm_router:
-            pref_response = await llm_router.ainvoke_task("preference_extractor", pref_msgs)
+            pref_response = await llm_router.ainvoke_task(TaskType.PREFERENCE_EXTRACTOR, pref_msgs)
         else:
             pref_response = await llm_fast.ainvoke(pref_msgs)
         extracted = json.loads(pref_response.content.strip().removeprefix("```json").removesuffix("```").strip())

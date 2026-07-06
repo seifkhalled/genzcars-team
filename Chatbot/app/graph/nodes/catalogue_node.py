@@ -1,6 +1,7 @@
 import json
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
+from app.enums import TaskType
 from app.graph.state import CarsChatState
 from app.data.brand_origins import format_brand_origins_prompt
 
@@ -64,7 +65,7 @@ async def catalogue_node(state: CarsChatState, config: RunnableConfig) -> dict:
         HumanMessage(content=last_message),
     ]
     if llm_router:
-        response = await llm_router.ainvoke_task("catalogue_check", messages)
+        response = await llm_router.ainvoke_task(TaskType.CATALOGUE_CHECK, messages)
     else:
         response = await llm_fast.ainvoke(messages)
 
