@@ -1,6 +1,12 @@
 import json
 import logging
+import time
 from langchain_core.messages import SystemMessage, HumanMessage
+
+from app.core.ai_metrics import (
+    llm_calls_total, llm_tokens_total, llm_latency_seconds, llm_cost_total,
+    llm_fallback_total,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -139,7 +145,11 @@ def _build_multimodal_content(text: str, image_url: str | None = None) -> str | 
     ]
 
 
-async def _parse_llm_json(llm, system: str, human: str, image_url: str | None = None) -> dict:
+def _get_llm_provider(llm) -> str:
+    return getattr(llm, "_llm_type", None) or llm.__class__.__name__.lower().replace("chat", "").replace("groq", "groq")
+
+
+async def _parse_llm_json(llm, system: str, human: str, image_url: str | None = None, task_type: str = "unknown") -> dict:
     def _ensure_dict(result):
         if isinstance(result, dict):
             return result
@@ -147,12 +157,25 @@ async def _parse_llm_json(llm, system: str, human: str, image_url: str | None = 
             return result[0]
         raise ValueError(f"Expected dict, got {type(result).__name__}")
 
+    provider = _get_llm_provider(llm)
     human_content = _build_multimodal_content(human, image_url)
+
+    start = time.monotonic()
     response = await llm.ainvoke([
         SystemMessage(content=system),
         HumanMessage(content=human_content),
     ])
+    duration = time.monotonic() - start
     content = response.content.strip()
+
+    usage = getattr(response, "usage_metadata", None) or {}
+    prompt_tokens = usage.get("input_tokens", 0) or 0
+    completion_tokens = usage.get("output_tokens", 0) or 0
+
+    llm_calls_total.labels(service="comparison_analysis", provider=provider, model="", task_type=task_type).inc()
+    llm_tokens_total.labels(service="comparison_analysis", provider=provider, type="prompt").inc(prompt_tokens)
+    llm_tokens_total.labels(service="comparison_analysis", provider=provider, type="completion").inc(completion_tokens)
+    llm_latency_seconds.labels(service="comparison_analysis", provider=provider, model="", task_type=task_type).observe(duration)
 
     try:
         cleaned = _clean_json(content)
@@ -212,7 +235,8 @@ async def analyze_car(ad: dict, research: dict, primary_llm, fallback_llm, langu
 
     try:
         logger.info("Attempting OpenRouter analysis for %s %s", ad.get("brand"), ad.get("model"))
-        return await _parse_llm_json(primary_llm, ANALYZE_SYSTEM, human_msg, cover_image)
+        return await _parse_llm_json(primary_llm, ANALYZE_SYSTEM, human_msg, cover_image, task_type="car_analysis")
     except Exception as e:
         logger.warning("OpenRouter failed (%s: %s), falling back to Groq for %s %s", type(e).__name__, e, ad.get("brand"), ad.get("model"))
-        return await _parse_llm_json(fallback_llm, ANALYZE_SYSTEM, human_msg)
+        llm_fallback_total.labels(service="comparison_analysis", task_type="car_analysis", from_provider="openrouter", to_provider="groq").inc()
+        return await _parse_llm_json(fallback_llm, ANALYZE_SYSTEM, human_msg, task_type="car_analysis")

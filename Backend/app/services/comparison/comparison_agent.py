@@ -65,7 +65,12 @@ async def compare(llm: ChatGroq, car_a: CarAnalysis, car_b: CarAnalysis) -> Comp
         car_b_json=json.dumps(car_b.to_dict(), indent=2, ensure_ascii=False),
     )
 
-    result = await parse_llm_json(llm, SYSTEM_PROMPT, human_msg)
+    result = await parse_llm_json(
+        llm, SYSTEM_PROMPT, human_msg,
+        task_type="comparison_agent",
+        model_name=f"{car_a.brand} {car_a.model} vs {car_b.brand} {car_b.model}",
+        provider="groq",
+    )
 
     comparison = ComparisonResult(
         winner=result.get("winner", "car_a"),

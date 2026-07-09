@@ -7,6 +7,10 @@ from uuid import UUID
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.outputs import LLMResult
 
+from app.core.ai_metrics import (
+    llm_calls_total, llm_tokens_total, llm_latency_seconds, llm_cost_total,
+)
+
 logger = logging.getLogger(__name__)
 
 MODEL_PRICING = {
@@ -143,6 +147,7 @@ class CostTracker(BaseCallbackHandler):
                 completion_tokens = msg.usage_metadata.get("output_tokens", 0) or 0
 
         record.finish(prompt_tokens, completion_tokens)
+        self._record_prometheus(record)
         self._log_usage(record)
         self._completed.append(record.to_dict())
 
@@ -155,6 +160,19 @@ class CostTracker(BaseCallbackHandler):
             d["prompt_tokens"], d["completion_tokens"], d["total_tokens"],
             d["estimated_cost_usd"], d["latency_ms"],
         )
+
+    def _record_prometheus(self, record: UsageRecord):
+        labels = {
+            "service": "chatbot",
+            "provider": record.provider,
+            "model": record.model,
+            "task_type": record.task_type,
+        }
+        llm_calls_total.labels(**labels).inc()
+        llm_tokens_total.labels(service="chatbot", provider=record.provider, type="prompt").inc(record.prompt_tokens)
+        llm_tokens_total.labels(service="chatbot", provider=record.provider, type="completion").inc(record.completion_tokens)
+        llm_latency_seconds.labels(**labels).observe(record.latency_ms / 1000.0)
+        llm_cost_total.labels(service="chatbot", provider=record.provider, model=record.model).inc(record.estimated_cost_usd)
 
     def get_session_usage(self) -> list[dict]:
         return [r.to_dict() for r in self._runs.values()]

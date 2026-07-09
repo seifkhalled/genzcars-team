@@ -60,6 +60,10 @@ async def lifespan(app: FastAPI):
                 $$;
             """)
             await conn.execute("""
+                ALTER TABLE chat_sessions
+                ADD COLUMN IF NOT EXISTS last_shown_ads JSONB DEFAULT '[]'::jsonb
+            """)
+            await conn.execute("""
                 CREATE TABLE IF NOT EXISTS chat_messages (
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                     session_token VARCHAR(128) NOT NULL REFERENCES chat_sessions(session_token),

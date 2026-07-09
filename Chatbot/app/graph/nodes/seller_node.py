@@ -52,6 +52,21 @@ Mention if their km or condition affects the price vs market median.
 Always respond in the same language as the user (Arabic or English).
 """
 
+PRICING_WEB_SYSTEM = """You are a car pricing expert for the Egyptian market.
+The seller wants to price their {brand} {model} {year}.
+
+{web_context}
+
+Seller's car:
+- Condition: {condition}
+- KM driven: {km_driven}
+
+Give a clear pricing recommendation with reasoning based on the web market context above.
+If the web context includes specific price numbers, use them. If not, use your expertise to estimate a reasonable price range for the Egyptian market.
+Be specific — provide an estimated price range in EGP.
+Always respond in the same language as the user (Arabic or English).
+"""
+
 TIPS_SYSTEM = """You are a car selling expert for the Egyptian market.
 Give the seller practical, specific advice for listing their {brand} {model} {year}.
 Cover: photos (lighting, angles, must-have shots), description writing
@@ -170,21 +185,37 @@ async def seller_node(state: CarsChatState, config: RunnableConfig) -> dict:
             logger.warning("Web search in seller_node failed: %s: %s", type(e).__name__, str(e)[:200])
 
     # Step 4: LLM response (streaming)
-    if seller_intent == "pricing" and price_analysis:
-        system_prompt = PRICING_SYSTEM.format(
-            brand=brand or "unknown",
-            model=model or "unknown",
-            year=year or "unknown",
-            sample_count=price_analysis["sample_count"],
-            min_price=f"{price_analysis['min']:,.0f}",
-            max_price=f"{price_analysis['max']:,.0f}",
-            median_price=f"{price_analysis['median']:,.0f}",
-            recommended_min=f"{price_analysis['recommended_min']:,.0f}",
-            recommended_max=f"{price_analysis['recommended_max']:,.0f}",
-            condition=condition or "not specified",
-            km_driven=km_driven or "not specified",
-            web_context=web_context,
-        )
+    if seller_intent == "pricing":
+        if price_analysis:
+            system_prompt = PRICING_SYSTEM.format(
+                brand=brand or "unknown",
+                model=model or "unknown",
+                year=year or "unknown",
+                sample_count=price_analysis["sample_count"],
+                min_price=f"{price_analysis['min']:,.0f}",
+                max_price=f"{price_analysis['max']:,.0f}",
+                median_price=f"{price_analysis['median']:,.0f}",
+                recommended_min=f"{price_analysis['recommended_min']:,.0f}",
+                recommended_max=f"{price_analysis['recommended_max']:,.0f}",
+                condition=condition or "not specified",
+                km_driven=km_driven or "not specified",
+                web_context=web_context,
+            )
+        elif web_context:
+            system_prompt = PRICING_WEB_SYSTEM.format(
+                brand=brand or "unknown",
+                model=model or "unknown",
+                year=year or "unknown",
+                condition=condition or "not specified",
+                km_driven=km_driven or "not specified",
+                web_context=web_context,
+            )
+        else:
+            system_prompt = TIPS_SYSTEM.format(
+                brand=brand or "your",
+                model=model or "car",
+                year=year or "",
+            )
     else:
         system_prompt = TIPS_SYSTEM.format(
             brand=brand or "your",

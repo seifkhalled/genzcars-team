@@ -139,8 +139,9 @@ class MultiLLM:
             if provider is None:
                 continue
             try:
-                async for chunk in provider.astream(messages, **kwargs):
-                    yield chunk
+                async with asyncio.timeout(60):
+                    async for chunk in provider.astream(messages, **kwargs):
+                        yield chunk
                 return
             except asyncio.TimeoutError:
                 logger.warning("%s stream (attempt %d/%d) timed out", task_type, i + 1, len(fallbacks))

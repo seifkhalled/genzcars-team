@@ -7,6 +7,7 @@ from app.db.queries import fetch_ads_for_comparison
 from app.pipeline.analyzer import analyze_car
 from app.pipeline.comparator import compare
 from app.pipeline.report_builder import build_report
+from app.core.ai_metrics import comparison_requests_total, comparison_errors_total, research_calls_total
 
 CACHE_TTL = 3600
 
@@ -17,6 +18,7 @@ def _make_cache_key(request: CompareRequest) -> str:
 
 
 async def run(request: CompareRequest, app_state) -> AsyncGenerator[dict, None]:
+    comparison_requests_total.labels(service="comparison_analysis").inc()
     cache_key = _make_cache_key(request)
 
     redis = getattr(app_state, "redis", None)
@@ -36,6 +38,7 @@ async def run(request: CompareRequest, app_state) -> AsyncGenerator[dict, None]:
     try:
         ads = await fetch_ads_for_comparison(pool, request.ad_ids)
     except ValueError as e:
+        comparison_errors_total.labels(service="comparison_analysis", error_type="invalid_ads").inc()
         yield {"type": "error", "content": str(e)}
         yield {"type": "done", "content": None}
         return
@@ -45,6 +48,7 @@ async def run(request: CompareRequest, app_state) -> AsyncGenerator[dict, None]:
         yield {"type": "status", "content": f"Researching {ad['brand']} {ad['model']}..."}
         research_tasks.append(tavily.research_car(ad))
 
+    research_calls_total.labels(service="comparison_analysis", provider="tavily").inc(len(research_tasks))
     research_results = await asyncio.gather(*research_tasks, return_exceptions=True)
     processed_results = []
     for r in research_results:
@@ -75,6 +79,7 @@ async def run(request: CompareRequest, app_state) -> AsyncGenerator[dict, None]:
     car_analyses = []
     for i, (ad, result) in enumerate(zip(ads, results)):
         if result is None:
+            comparison_errors_total.labels(service="comparison_analysis", error_type="analysis_failed").inc()
             yield {"type": "error", "content": f"Analysis failed for {ad['brand']} {ad['model']}."}
             yield {"type": "done", "content": None}
             return
@@ -92,6 +97,7 @@ async def run(request: CompareRequest, app_state) -> AsyncGenerator[dict, None]:
     try:
         comparison_result = await compare(car_analyses, openrouter_llm, groq_llm, request.language)
     except Exception:
+        comparison_errors_total.labels(service="comparison_analysis", error_type="comparison_failed").inc()
         yield {"type": "error", "content": "Comparison analysis failed. Please try again."}
         yield {"type": "done", "content": None}
         return

@@ -1,6 +1,12 @@
 import json
 import logging
+import time
 from langchain_core.messages import SystemMessage, HumanMessage
+
+from app.core.ai_metrics import (
+    llm_calls_total, llm_tokens_total, llm_latency_seconds, llm_cost_total,
+    llm_fallback_total,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -128,12 +134,29 @@ def _clean_json(text: str) -> str:
     return text.strip()
 
 
-async def _compare_with_llm(llm, system: str, human: str) -> dict:
+def _get_llm_provider(llm) -> str:
+    return getattr(llm, "_llm_type", None) or llm.__class__.__name__.lower().replace("chat", "").replace("groq", "groq")
+
+
+async def _compare_with_llm(llm, system: str, human: str, task_type: str = "comparison") -> dict:
+    provider = _get_llm_provider(llm)
+
+    start = time.monotonic()
     response = await llm.ainvoke([
         SystemMessage(content=system),
         HumanMessage(content=human),
     ])
+    duration = time.monotonic() - start
     content = response.content.strip()
+
+    usage = getattr(response, "usage_metadata", None) or {}
+    prompt_tokens = usage.get("input_tokens", 0) or 0
+    completion_tokens = usage.get("output_tokens", 0) or 0
+
+    llm_calls_total.labels(service="comparison_analysis", provider=provider, model="", task_type=task_type).inc()
+    llm_tokens_total.labels(service="comparison_analysis", provider=provider, type="prompt").inc(prompt_tokens)
+    llm_tokens_total.labels(service="comparison_analysis", provider=provider, type="completion").inc(completion_tokens)
+    llm_latency_seconds.labels(service="comparison_analysis", provider=provider, model="", task_type=task_type).observe(duration)
 
     def _ensure_dict(result):
         if isinstance(result, dict):
@@ -258,11 +281,12 @@ async def compare(car_analyses: list[dict], primary_llm, fallback_llm, language:
 
     try:
         logger.info("Attempting OpenRouter comparison...")
-        return await _compare_with_llm(primary_llm, COMPARE_SYSTEM, human_msg)
+        return await _compare_with_llm(primary_llm, COMPARE_SYSTEM, human_msg, task_type="comparison")
     except Exception as e:
         logger.warning("OpenRouter comparison failed (%s: %s), falling back to Groq", type(e).__name__, e)
+        llm_fallback_total.labels(service="comparison_analysis", task_type="comparison", from_provider="openrouter", to_provider="groq").inc()
         try:
-            return await _compare_with_llm(fallback_llm, COMPARE_SYSTEM, human_msg)
+            return await _compare_with_llm(fallback_llm, COMPARE_SYSTEM, human_msg, task_type="comparison")
         except Exception as e2:
             logger.error("Groq comparison also failed (%s: %s), using fallback comparison", type(e2).__name__, e2)
             return _build_fallback_comparison(car_analyses)

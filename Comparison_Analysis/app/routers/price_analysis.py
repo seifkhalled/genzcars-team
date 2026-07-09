@@ -22,7 +22,7 @@ PRICE_SYSTEM = """You are an expert automotive analyst for the Egyptian car mark
 Analyze the web search results for a car and extract real price data.
 Look for actual numbers (prices in EGP) mentioned in the results.
 If you find multiple prices, use them to determine the range and average.
-If no specific prices are found, set confidence to "low" and all values to 0.
+If no specific prices are found in the search results, use your knowledge of the Egyptian car market to provide a reasonable estimate and set confidence to "low".
 
 Return ONLY valid JSON — no markdown, no explanation.
 """
@@ -34,7 +34,7 @@ PRICE_HUMAN_TEMPLATE = """Web search results for {year} {make} {model} in Egypt:
 Based on the search results above, extract price information.
 - Look for prices followed by "EGP", "جنيه", "LE", or number ranges
 - If you find specific prices, calculate low/high/average from them
-- If the snippets mention no prices at all, set all values to 0 and confidence "low"
+- If the snippets mention no prices at all, use your knowledge of the Egyptian car market to estimate a reasonable range and set confidence to "low"
 
 Return ONLY this JSON:
 {{
@@ -64,6 +64,25 @@ async def price_analysis(body: PriceAnalysisRequest, req: Request):
     snippets_text = "\n\n".join(
         f"Query: {r['query']}\n{r['snippets']}" for r in search_results if r["snippets"]
     )
+
+    if not snippets_text:
+        tavily = getattr(req.app.state, "tavily", None)
+        if tavily:
+            try:
+                tavily_result = await tavily.search(f"{make} {model} {year} price Egypt EGP")
+                if tavily_result and tavily_result.get("results"):
+                    tavily_snippets = "\n".join(
+                        f"- {r.get('title', '')}: {r.get('content', '')} ({r.get('url', '')})"
+                        for r in tavily_result["results"][:8]
+                    )
+                    if tavily_snippets:
+                        snippets_text = tavily_snippets
+                        search_results = [
+                            {"query": f"{make} {model} {year} price Egypt", "snippets": tavily_snippets}
+                        ]
+            except Exception as e:
+                logger.warning("Tavily fallback search failed: %s", e)
+
     if not snippets_text:
         snippets_text = "No search results found."
 
@@ -108,7 +127,7 @@ async def price_analysis(body: PriceAnalysisRequest, req: Request):
             "sources": _extract_sources(search_results),
         }
     else:
-        fallback = _fallback_estimate(search_results)
+        fallback = await _fallback_estimate(llm, make, model, year)
         report = {
             "make": body.make,
             "model": body.model,
@@ -140,9 +159,32 @@ def _extract_sources(search_results: list[dict]) -> list[dict]:
     return sources[:10]
 
 
-def _fallback_estimate(search_results: list[dict]) -> dict:
-    snippets_text = "\n".join(r.get("snippets", "") for r in search_results if r["snippets"])
+async def _fallback_estimate(llm, make: str, model: str, year: int) -> dict:
+    if llm:
+        try:
+            knowledge_prompt = f"""You are an expert in the Egyptian car market. Based on your knowledge, estimate the current market price range for a {year} {make} {model} in Egypt in EGP.
+
+Return ONLY this JSON — no markdown, no explanation, no extra text:
+{{
+  "estimated_range": {{"low": <number>, "high": <number>, "average": <number>}},
+  "summary": "2-3 sentence estimate based on market knowledge"
+}}"""
+            response = await llm.ainvoke([HumanMessage(content=knowledge_prompt)])
+            content = response.content.strip()
+            if content.startswith("```"):
+                content = content[3:]
+            if content.startswith("json"):
+                content = content[4:]
+            if content.endswith("```"):
+                content = content[:-3]
+            content = content.strip()
+            result = json.loads(content)
+            if "estimated_range" in result and all(v is not None for v in result["estimated_range"].values()):
+                return result
+        except Exception as e:
+            logger.warning("Fallback LLM estimate failed: %s", e)
+
     return {
         "estimated_range": {"low": 0, "high": 0, "average": 0},
-        "summary": snippets_text[:500] if snippets_text else "No market data available for this car.",
+        "summary": f"No market data available for {year} {make} {model}.",
     }

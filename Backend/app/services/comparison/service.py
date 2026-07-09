@@ -5,6 +5,7 @@ from typing import AsyncGenerator
 import asyncpg
 from langchain_groq import ChatGroq
 
+from app.core.ai_metrics import comparison_requests_total, comparison_errors_total
 from app.services.comparison.ad_loader import load_ads
 from app.services.comparison.structured_analyzer import analyze_car
 from app.services.comparison.vision_analyzer import analyze_car_images
@@ -29,6 +30,7 @@ class ComparisonService:
     async def run(
         self, ad_id_1: str, ad_id_2: str
     ) -> AsyncGenerator[dict, None]:
+        comparison_requests_total.labels(service="backend").inc()
         try:
             yield {"type": "status", "content": "Loading car details..."}
             ad1, ad2 = await load_ads(self.pool, ad_id_1, ad_id_2)
@@ -55,16 +57,19 @@ class ComparisonService:
             yield {"type": "done", "content": None}
 
         except HallucinationGuardError as e:
+            comparison_errors_total.labels(service="backend", error_type="hallucination_guard").inc()
             logger.error("Hallucination guard rejected comparison: %s", e)
             yield {"type": "error", "content": "Comparison validation failed. Please try again."}
             yield {"type": "done", "content": None}
 
         except ValueError as e:
+            comparison_errors_total.labels(service="backend", error_type="value_error").inc()
             logger.error("Comparison failed: %s", e)
             yield {"type": "error", "content": str(e)}
             yield {"type": "done", "content": None}
 
         except Exception as e:
+            comparison_errors_total.labels(service="backend", error_type="unexpected").inc()
             logger.exception("Unexpected error during comparison")
             yield {"type": "error", "content": "An unexpected error occurred. Please try again."}
             yield {"type": "done", "content": None}

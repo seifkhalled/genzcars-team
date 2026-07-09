@@ -1,9 +1,13 @@
 import asyncio
 import logging
+import time
 from typing import List
 from openai import AsyncOpenAI
 
 from app.config import settings
+from app.core.ai_metrics import (
+    llm_calls_total, llm_tokens_total, llm_latency_seconds, llm_cost_total,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -130,6 +134,7 @@ async def _call_vision_llm(ad: dict, image_urls: List[str]) -> dict:
             "image_url": {"url": url, "detail": "low"},
         })
 
+    start = time.monotonic()
     response = await client.chat.completions.create(
         model=settings.openrouter_vision_model,
         messages=[
@@ -143,6 +148,17 @@ async def _call_vision_llm(ad: dict, image_urls: List[str]) -> dict:
             "X-Title": "Deals Egypt",
         },
     )
+    duration = time.monotonic() - start
+
+    usage = response.usage or {}
+    prompt_tokens = usage.get("prompt_tokens", 0) or 0
+    completion_tokens = usage.get("completion_tokens", 0) or 0
+    model_used = response.model or settings.openrouter_vision_model
+
+    llm_calls_total.labels(service="backend", provider="openrouter", model=model_used, task_type="vision_analysis").inc()
+    llm_tokens_total.labels(service="backend", provider="openrouter", type="prompt").inc(prompt_tokens)
+    llm_tokens_total.labels(service="backend", provider="openrouter", type="completion").inc(completion_tokens)
+    llm_latency_seconds.labels(service="backend", provider="openrouter", model=model_used, task_type="vision_analysis").observe(duration)
 
     content = response.choices[0].message.content.strip()
     cleaned = content.removeprefix("```json").removeprefix("```").removesuffix("```").strip()

@@ -229,6 +229,8 @@
     and persisted to PostgreSQL.
   </p>
 
+  <h3>High-Level Graph</h3>
+
   <div class="diagram-wrapper">
     <pre class="mermaid">
       flowchart TD
@@ -287,7 +289,630 @@
     </pre>
   </div>
 
+  <h3>Low-Level Workflow — Full Decision &amp; Execution Detail</h3>
+
+  <div class="diagram-wrapper">
+    <pre class="mermaid">
+      flowchart TB
+        START(["START"]) --> ENTRY["POST /message
+        event_stream()"]
+
+        subgraph ENTRY_POINT["1️⃣  Entry Point — routers/chat.py"]
+          ENTRY --> REQ["Parse ChatRequest
+        {session_token, message, user_id, context_ad_id}"]
+
+          REQ --> GUARD["Guardrail
+        validate_input()
+        - empty message → error
+        - >2000 chars → error
+        - injection pattern → error
+        - valid → proceed"]
+
+          GUARD -->|"invalid"| ERR_SSE["Emit SSE:
+        {type:'error', content:'...'}
+        {type:'done'}"]
+
+          GUARD -->|"valid"| HISTORY["Load history
+        get_chat_history(pool, session_token)
+        get_preferences(pool, session_token)
+
+        → messages_history: list[HumanMessage|AIMessage]
+        → preferences: dict from DB
+        → turn_count, intent_history"]
+
+          HISTORY --> BUILD["Build CarsChatState
+        - messages: history + new HumanMessage
+        - preferences, turn_count, intent_history
+        - retrieve_ads=[], similar_ads=[]
+        - price_analysis=None
+        - catalogue_check=None
+        - next_node='""']
+
+          BUILD --> CONFIG["Build RunnableConfig
+        - llm_router (MultiLLM)
+        - llm_fast, llm_stream
+        - embedder, qdrant_search
+        - db_pool, sse_queue, web_search
+        - mcp_registry
+        - cost_tracker"]
+
+          CONFIG --> GRAPH_INVOKE["Invoke Graph
+        graph.astream(input_state, config, stream_mode='updates')"]
+        end
+
+        subgraph PREF["2️⃣ Preference Extractor — preference_extractor.py"]
+          GRAPH_INVOKE --> PE_START
+
+          PE_START["<b>preference_extractor_node</b>"] --> PE_TRIVIAL{"_is_trivial_message()
+        Check: len(words) &lt; 3?
+        Any preference keywords in text?"}
+
+          PE_TRIVIAL -->|"trivial → skip Pass 1"| PE_NOP["Pass 1 result = None"]
+          PE_TRIVIAL -->|"has keywords"| PE_INFER["<b>Pass 1: Need Inference</b>
+        ainvoke_task('preference_extractor')
+        Prompt: NEED_INFERENCE_SYSTEM
+
+        Extracts:
+        - inferred_use_case
+        - inferred_body_types
+        - inferred_min_seats
+        - explicit_rejections"}
+
+          PE_INFER -->|"has_preference_content=false"| PE_NONE
+          PE_INFER -->|"has_preference_content=true"| PE_INFER_OK["Build inference_context:
+        'Suggested body types: suv, mpv'
+        'Inferred use case: family'"]
+
+          PE_NONE --> PE_PASS2
+          PE_INFER_OK --> PE_PASS2
+
+          PE_PASS2["<b>Pass 2: Extract Explicit Preferences</b>
+        ainvoke_task('preference_extractor')
+        Prompt: EXTRACT_SYSTEM_PROMPT
+
+        - brand_origins_prompt injected
+        - inference_context injected
+        - current_preferences_json injected
+
+        Extracts JSON:
+        budget_min/max, preferred_*,
+        seller_*, excluded_*,
+        use_case, inferred_*"]
+
+          PE_PASS2 --> PE_MERGE["_merge_preferences(merged, extracted)
+        Rules:
+        - null → leave unchanged
+        - [] → explicit clear
+        - [val] → append to existing list
+        - excluded_* → remove from positive lists
+        - is_seller → set directly"]
+
+          PE_MERGE --> PE_DB["Fire-and-forget:
+        upsert_user_preferences()
+        with turn_count + intent_history"]
+
+          PE_DB --> PE_RETURN["RETURN
+        ---
+        turn_count: +1"]
+        end
+
+        PE_RETURN --> ROUTER_START
+
+        subgraph ROUTER_NODE["3️⃣ Router — router.py"]
+          ROUTER_START["<b>router_node</b>"] --> ROUTER_PROMPT["Build ROUTER_SYSTEM prompt:
+        - message_history (conversation so far)
+        - has_context (context_ad_id yes/no)
+        - latest_message
+
+        Intents:
+        catalogue_node → buying/find/search/recommend
+        advisor_node → specific car query
+        seller_node → sell/price my car
+        guide_node → website help
+        general_node → knowledge/greetings/unclear"]
+
+          ROUTER_PROMPT --> ROUTER_LLM["ainvoke_task('router')
+        Fast model (temp=0, 1024tokens)
+        <b>SemanticCache hit → skip LLM</b>
+
+        Returns: one of 5 node names
+        OR JSON {'next_node': '...'}"]
+
+          ROUTER_LLM --> ROUTER_PARSE["Parse response:
+        1. Try JSON.parse('{...}')
+        2. Fallback: search for node name in text
+        3. Default: general_node"]
+
+          ROUTER_PARSE --> ROUTER_STATE["Build result dict:
+        - next_node: str
+        - intent: str
+        - intent_history: append
+        - If catalogue:
+          reset retrieve_ads, similar_ads,
+          price_analysis, catalogue_check,
+          recommendations to defaults"]
+
+          ROUTER_STATE --> ROUTER_RETURN["RETURN
+        ---
+        next_node, intent, intent_history"]
+        end
+
+        ROUTER_RETURN -->|"next_node=catalogue_node"| CAT_START
+        ROUTER_RETURN -->|"next_node=advisor_node"| ADV_START
+        ROUTER_RETURN -->|"next_node=seller_node"| SELL_START
+        ROUTER_RETURN -->|"next_node=guide_node"| GUIDE_START
+        ROUTER_RETURN -->|"next_node=general_node"| GEN_START
+
+        subgraph CATALOGUE["4a️⃣ Catalogue Node — catalogue_node.py"]
+          CAT_START["<b>catalogue_node</b>"] --> CAT_LLM["ainvoke/'catalogue_check'
+        Prompt: EXTRACT_CATALOGUE_SYSTEM
+        - brand_origins_prompt injected
+
+        Parse JSON:
+        - exact_request {brands[], model, year, body_type} | null
+        - is_specific: true/false
+        - request_label: str"]
+
+          CAT_LLM --> CAT_SPECIFIC{"is_specific AND
+        exact_request AND
+        (pool OR mcp_registry)?"}
+
+          CAT_SPECIFIC -->|"No → general search"| CAT_GENERAL["RETURN
+        ---
+        catalogue_check.available = True
+        next_node: search_node"]
+
+          CAT_SPECIFIC -->|"Yes"| CAT_CHECK["For each brand in brands[]:
+        - MCP: call_tool('check_catalogue')
+          → SQL: check_catalogue_availability()
+        - Fallback: direct DB
+
+        Result: {count, ads[]}"}
+
+          CAT_CHECK --> CAT_AVAIL{"Any brand
+        with count &gt; 0?"}
+
+          CAT_AVAIL -->|"Yes → available"| CAT_YES["RETURN
+        ---
+        catalogue_check.available: True
+        available_brands: [{brand, count, ads}]
+        next_node: search_node"]
+
+          CAT_AVAIL -->|"No → not available"| CAT_NO["RETURN
+        ---
+        catalogue_check.available: False
+        requested, brands_searched, model,
+        year, body_type
+        next_node: recommendation_node"]
+        end
+
+        CAT_GENERAL --> SN_START
+        CAT_YES --> SN_START
+        CAT_NO --> RN_START
+
+        subgraph SEARCH["5️⃣ Search Node — search_node.py"]
+          SN_START["<b>search_node</b>"] --> SN_QUERY["ainvoke_task('search')
+        Prompt: QUERY_BUILDER_SYSTEM
+        - conversation_history (-6 messages)
+        - expansion_prompt (colloquial terms)
+        - last_message
+
+        Returns JSON:
+        - search_query: str (for semantic match)
+        - filters: {price_min/max, brand, city,
+          fuel_type, transmission, body_types}"]
+
+          SN_QUERY --> SN_PARSE["Parse JSON
+        Filter: extract brand, body_types,
+        excluded_* from metadata filters
+
+        Fallback: if JSON fails → use last_message
+        as search_query, no filters"]
+
+          SN_PARSE --> SN_SEARCH{"MCP: call_tool('search_cars')
+        available?"}
+
+          SN_SEARCH -->|"Yes → MCP with filters"| SN_MCP["call_tool('search_cars', {
+          query: search_query,
+          limit (INITIAL+3),
+          filters: price_min/max, brand(s),
+          city, fuel_type, transmission,
+          body_types, excluded_* }) → list[dict]"]
+          SN_SEARCH -->|"No / failed"| SN_DIRECT["Direct Qdrant hybrid_search
+        embedder.encode(search_query)
+        qdrant_search.hybrid_search(
+          query_text, vector,
+          limit+3, same filters)"]
+
+          SN_MCP --> SN_VERIFY
+          SN_DIRECT --> SN_VERIFY
+
+          SN_VERIFY["verify_results()
+        → filter to active listings only
+
+        compute_dcg()
+        → DCG-like metric using scores
+        evaluate_search_quality()
+        → top_score &gt; 0.7 OR avg_score &gt; 0.5?"}
+
+          SN_VERIFY --> SN_QUALITY{"Quality
+        check passed?"}
+
+          SN_QUALITY -->|"Yes"| SN_IMG_FETCH
+          SN_QUALITY -->|"No — retry broader"| SN_BROADER["Broader search (no filters):
+        MCP or direct Qdrant
+        limit: BROAD_LIMIT
+
+        verify_results + compute_dcg
+
+        merge_dedup_results(primary, broader)
+        → dedup by ad_id, max MERGE_MAX_COUNT
+
+        Keep better ranked set via DCG comparison"]
+
+          SN_BROADER --> SN_IMG_FETCH
+
+          SN_IMG_FETCH["Fetch images:
+        - MCP: call_tool('get_car_images',
+          {ad_ids: [...]}) → {id: [urls]}
+        - Fallback direct DB
+
+        Build ad objects[]:
+        {id, brand, model, year, price,
+        body_type, transmission, fuel_type,
+        city, km_driven, condition,
+        cover_image_url, images, score}"]
+
+          SN_IMG_FETCH --> SN_SUMMARY["Build cars_summary:
+        'X cars found in Cairo, Giza
+        (suv, sedan) priced 200,000–500,000 EGP'"]
+
+          SN_SUMMARY --> SN_STREAM["astream_task('search')
+        Prompt: RESPONSE_SYSTEM
+        (cars_summary injected)
+        → streamed token text"]
+
+          SN_STREAM --> SN_RETURN["RETURN
+        ---
+        retrieve_ads: ad_objects[]
+        node_response: streamed_text"]
+        end
+
+        subgraph RECOMMENDATION["6️⃣ Recommendation Node — recommendation_node.py"]
+          RN_START["<b>recommendation_node</b>"] --> RN_BUILD["Build search_text:
+        from catalogue_check:
+        - brands_searched[]
+        - model
+        - body_type
+        - year
+
+        Search: MCP or Qdrant hybrid_search
+        - relaxed year ±3
+        - same body_type
+        - limit: RECOMMENDATION_LIMIT+3"]
+
+          RN_BUILD --> RN_VERIFY["verify_results()
+        → active listings only"]
+
+          RN_VERIFY --> RN_IMAGES["Fetch images: MCP or DB
+        Build ads[] objects
+
+        Build alternatives_summary:
+        'X alternative cars found in Y, Z'"]
+
+          RN_IMAGES --> RN_STREAM["astream_task('recommendation')
+        Prompt: RECOMMENDATION_SYSTEM
+        (requested_description, brands_searched,
+        model, year, body_type, alternatives_summary)
+        → streamed token text"]
+
+          RN_STREAM --> RN_RETURN["RETURN
+        ---
+        retrieved_ads: ads[:2]
+        recommendations: ads[:2]
+        node_response: streamed_text"]
+        end
+
+        subgraph ADVISOR["7️⃣ Advisor Node — advisor_node.py"]
+          ADV_START["<b>advisor_node</b>"] --> ADV_CAR{"Determine target car:
+        Priority:
+        1. context_ad_id → DB fetch
+        2. single retrieved_ad
+        3. multiple → LLM pick
+        \nFound?"}
+
+          ADV_CAR -->|"No car found"| ADV_FALLBACK["RETURN
+        ---
+        node_response:
+        'Could not find that car...'"]
+
+          ADV_CAR -->|"Found"| ADV_GROUND["build_grounding_block(ad_payload)
+        → verified listing data block
+        (brand, model, year, price, km,
+        condition, features, images flag)"]
+
+          ADV_GROUND --> ADV_WEB["Web search (optional):
+        '{brand} {model} {year} reliability
+        review common problems'
+        → web_context string"]
+
+          ADV_WEB --> ADV_STREAM["astream_task('advisor')
+        Prompt: ADVISOR_SYSTEM
+        (grounding_block, web_context,
+        message_history).
+
+        Rules:
+        - Only answer from verified data
+        - Never invent prices/km/years
+        - General knowledge OK but labeled
+        → streamed token text"]
+
+          ADV_STREAM --> ADV_HALLUC["validate_response(
+        streamed_text, ad_payload)
+        → Regex find 5-7 digit numbers
+        → Compare vs listing data
+        → If mismatch &gt; 5%: append warning
+        'Please verify with seller'"]
+
+          ADV_HALLUC --> ADV_SIMILAR["Fetch similar cars:
+        - MCP: call_tool('find_similar_cars')
+          {brand, model, year, body_type,
+           exclude_ad_id, limit=4}
+        - Fallback Qdrant hybrid_search
+
+        Top 2 → similar_ads[ {id, brand, model,
+        year, price, city, cover_image_url} ]"]
+
+          ADV_SIMILAR --> ADV_RETURN["RETURN
+        ---
+        node_response: validated_text
+        similar_ads: top 2 similar cars"]
+        end
+
+        subgraph SELLER["8️⃣ Seller Node — seller_node.py"]
+          SELL_START["<b>seller_node</b>"] --> SELL_EXTRACT["ainvoke('seller')
+        Prompt: SELLER_EXTRACT_SYSTEM
+        Extract JSON:
+        {brand, model, year, condition,
+        km_driven, seller_intent}
+
+        seller_intent:
+        pricing | tips | listing | general"]
+
+          SELL_EXTRACT --> SELL_ANALYZE{"seller_intent
+        == 'pricing'?"}
+
+          SELL_ANALYZE -->|"No → tips/listing/general"| SELL_TIPS
+          SELL_ANALYZE -->|"Yes"| SELL_MCP{"MCP: call_tool
+        ('analyze_market_price')
+        available?"}
+
+          SELL_MCP -->|"Yes"| SELL_MCP_DO["call_tool('analyze_market_price', {
+            brand, model, year,
+            km_driven, condition
+          })
+        → Qdrant hybrid search
+        → compute median, min, max
+        → apply km-driven adjustment
+        → return {min, max, median, mean,
+          recommended_min, recommended_max,
+          sample_count}"]
+
+          SELL_MCP -->|"Failed/Unavailable"| SELL_DIRECT["Direct Qdrant search:
+        embedder.encode(search_text)
+        qdrant_search.hybrid_search(
+          brand, year ± YEAR_RANGE,
+          limit: MARKET_LIMIT + 5)
+
+        Extract prices[], sort
+        median = prices[len//2]
+        recommended = median × 0.9–1.1
+        If km_driven > avg_km:
+          recommended = median × 0.85–1.05
+
+        price_analysis = {min, max, median,
+          mean, recommended_min/max, sample_count}"]
+
+          SELL_MCP_DO --> SELL_WEB
+          SELL_DIRECT --> SELL_WEB
+
+          SELL_WEB["Web search:
+        '{brand} {model} {year} used car
+        price Egypt market {current_year}'
+        → web_context string"]
+
+          SELL_TIPS --> SELL_WEB
+
+          SELL_WEB --> SELL_PROMPT{"Choose prompt: (3 paths)"}
+
+          SELL_PROMPT -->|"A: price_analysis exists"| SELL_P_A["PRICING_SYSTEM
+        Hard data from Qdrant:
+        - Listings analyzed: X
+        - Min: X EGP / Max: Y EGP
+        - Median: Z EGP
+        - Recommended: A–B EGP
+        - Condition, KM, web_context
+
+        → Clear pricing recommendation with numbers"]
+
+          SELL_PROMPT -->|"B: no data, web_context exists"| SELL_P_B["PRICING_WEB_SYSTEM
+        Web context only (no Qdrant data):
+        - web_context text
+        - condition, km_driven
+
+        → Estimate range based on web + expertise"]
+
+          SELL_PROMPT -->|"C: no data, no web"| SELL_P_C["TIPS_SYSTEM
+        Listing advice only:
+        - Photos, description, pricing psychology
+        - No price numbers (no data available)"]
+
+          SELL_P_A --> SELL_STREAM
+          SELL_P_B --> SELL_STREAM
+          SELL_P_C --> SELL_STREAM
+
+          SELL_STREAM["astream_task('seller')
+        → streamed token text"]
+
+          SELL_STREAM --> SELL_RETURN["RETURN
+        ---
+        node_response: streamed_text
+        price_analysis: dict | None
+        preferences: upsert seller fields"]
+        end
+
+        subgraph GUIDE["9️⃣ Guide Node — guide_node.py"]
+          GUIDE_START["<b>guide_node</b>"] --> GUIDE_TOPIC["ainvoke_task('guide_topic')
+        Fast model (cached)
+        Prompt: TOPIC_DETECT_SYSTEM
+        → classify into:
+        post_ad | filter_search | save_car |
+        compare | contact_seller | delete_ad |
+        edit_ad | view_favorites |
+        account_settings | other"]
+
+          GUIDE_TOPIC --> GUIDE_STREAM["astream_task('guide')
+        Prompt: GUIDE_SYSTEM
+        - website_guide (features reference)
+        - detected_topic
+        - user message
+
+        → streamed token text"]
+
+          GUIDE_STREAM --> GUIDE_RETURN["RETURN
+        ---
+        node_response: streamed_text"]
+        end
+
+        subgraph GENERAL["🔟 General Node — general_node.py"]
+          GEN_START["<b>general_node</b>"] --> GEN_SEARCH_DECIDE["ainvoke_task('search_decision')
+        Fast model (cached)
+        Prompt: SEARCH_DECIDE_SYSTEM
+        → JSON: {needs_search, search_query}
+
+        Topics needing web search:
+        reliability, problems, fuel economy,
+        market trends, news, reviews,
+        prices, insurance, parts, comparisons"]
+
+          GEN_SEARCH_DECIDE --> GEN_WEB{"needs_search
+        AND search_query?"}
+
+          GEN_WEB -->|"Yes"| GEN_DDG["web_search.search(query)
+        → DuckDuckGo
+        → web_context string"]
+
+          GEN_WEB -->|"No"| GEN_NO_WEB["web_context = ''"]
+
+          GEN_DDG --> GEN_STREAM
+          GEN_NO_WEB --> GEN_STREAM
+
+          GEN_STREAM["astream_task('general')
+        Prompt: GENERAL_SYSTEM
+        - message_history (-6)
+        - web_context (if any)
+        - user message
+
+        Rules:
+        - Keep 3-5 sentences
+        - Never invent prices/stats
+        - Same language as user
+        → streamed token text"]
+
+          GEN_STREAM --> GEN_RETURN["RETURN
+        ---
+        node_response: streamed_text"]
+        end
+
+        SN_RETURN --> RESP_START
+        RN_RETURN --> RESP_START
+        ADV_RETURN --> RESP_START
+        SELL_RETURN --> RESP_START
+        GUIDE_RETURN --> RESP_START
+        GEN_RETURN --> RESP_START
+
+        subgraph RESPONDER["1️⃣1️⃣ Responder Node — responder_node.py"]
+          RESP_START["<b>responder_node</b>"] --> RESP_CLEAN["_clean_node_response(text)
+        → Strip LLM wrapper artifacts
+        (invalid_tool_calls=, additional_kwargs=)"]
+
+          RESP_CLEAN --> RESP_FALLBACK{"Fallback:
+        No node_response
+        AND no retrieved_ads?"}
+
+          RESP_FALLBACK -->|"Yes (silent failure)"| RESP_FALLBACK_MSG["Set node_response:
+        'Sorry, could not find an answer.
+        Try rephrasing.'"]
+
+          RESP_FALLBACK -->|"No"| RESP_SSE
+          RESP_FALLBACK_MSG --> RESP_SSE
+
+          RESP_SSE["=== SSE Event Emission (in-order) ==="]
+
+          RESP_SSE --> RESP_STATUS["1. status
+        NODE_STATUS_MAP[intent]
+        e.g. 'Searching listings...'"]
+
+          RESP_STATUS --> RESP_TOKENS["2. token events
+        node_response.split(' ')
+        → emit one word at a time
+        with 20ms delay (RESPONDER_TOKEN_DELAY)"]
+
+          RESP_TOKENS --> RESP_CARS["3. cars event
+        retrieved_ads (non-new_match only)"]
+
+          RESP_CARS --> RESP_NEW["4. new_match event (if any)"]
+
+          RESP_NEW --> RESP_SIMILAR["5. similar_cars event (if any)"]
+
+          RESP_SIMILAR --> RESP_PRICE["6. price_analysis event (if any)"]
+
+          RESP_PRICE --> RESP_WAIT["7. Wait for token_task to finish"]
+
+          RESP_WAIT --> RESP_DB["8. Fire-and-forget DB persist:
+        - insert_chat_message('user', ref_ads)
+        - insert_chat_message('assistant',
+          node_response, node_used=intent,
+          referenced_ad_ids=[...])"]
+
+          RESP_DB --> RESP_DONE["9. SSE: {type:'done'}]
+
+          RESP_DONE --> RESP_RETURN["RETURN
+        ---
+        messages: [AIMessage(content=node_response)]"]
+        end
+
+        RESP_RETURN --> END(["END"])
+
+        ERR_SSE --> ERR_SSE_END(["END (no graph run)"])
+
+        style START fill:#dc2626,color:#fff,stroke:none
+        style END fill:#dc2626,color:#fff,stroke:none
+        style ERR_SSE_END fill:#dc2626,color:#fff,stroke:none
+        style ENTRY_POINT fill:#151820,stroke:#3b82f6,color:#e4e6f0
+        style PREFERENCE fill:#151820,stroke:#3b82f6,color:#e4e6f0
+        style ROUTER_NODE fill:#151820,stroke:#8b5cf6,color:#e4e6f0
+        style CATALOGUE fill:#151820,stroke:#2563eb,color:#e4e6f0
+        style SEARCH fill:#151820,stroke:#059669,color:#e4e6f0
+        style RECOMMENDATION fill:#151820,stroke:#059669,color:#e4e6f0
+        style ADVISOR fill:#151820,stroke:#2563eb,color:#e4e6f0
+        style SELLER fill:#151820,stroke:#2563eb,color:#e4e6f0
+        style GUIDE fill:#151820,stroke:#2563eb,color:#e4e6f0
+        style GENERAL fill:#151820,stroke:#2563eb,color:#e4e6f0
+        style RESPONDER fill:#151820,stroke:#d97706,color:#e4e6f0
+        style GRAPH_INVOKE fill:#1a1d27,stroke:#3b82f6,color:#e4e6f0
+        style CONFIG fill:#1a1d27,stroke:#6b7280,color:#e4e6f0
+        style BUILD fill:#1a1d27,stroke:#6b7280,color:#e4e6f0
+        style HISTORY fill:#1a1d27,stroke:#22c55e,color:#e4e6f0
+        style GUARD fill:#1a1d27,stroke:#ef4444,color:#e4e6f0
+        style REQ fill:#1a1d27,stroke:#6b7280,color:#e4e6f0
+        style ENTRY fill:#1a1d27,stroke:#6b7280,color:#e4e6f0
+        style ERR_SSE fill:#ef4444,color:#fff,stroke:none
+    </pre>
+  </div>
+
   <h3>State Schema</h3>
+  <p>Each node's <b>RETURN</b> box in the diagram above maps to keys in this state dict that are updated after the node executes. Keys not returned are left unchanged:</p>
   <p>The <code>CarsChatState</code> TypedDict flows through every node:</p>
   <div class="diagram-wrapper">
     <pre><code>{
@@ -1819,9 +2444,110 @@ Instrumentator().instrument(app).expose(app)</code></pre>
   </p>
 
   <!-- ================================================================ -->
-  <!-- SECTION 12: VOICE ASSISTANT                                     -->
+  <!-- SECTION 12: AI PRICING (FIXED)                                    -->
   <!-- ================================================================ -->
-  <h2>12. Voice Assistant</h2>
+  <h2>12. AI Pricing — Fixes for Missing Numbers</h2>
+  <p>
+    The AI pricing system produces price numbers (EGP ranges, median, min/max) for users asking
+    <em>"how much is my car worth?"</em> or <em>"price my car"</em>. Two services generate these
+    prices: the <strong>Chatbot seller_node</strong> (uses Qdrant listing data) and the
+    <strong>Comparison Analysis price_analysis</strong> endpoint (uses web search + LLM knowledge).
+    Below are the issues found and the fixes applied to ensure prices are <strong>always</strong>
+    returned — never zero or missing.
+  </p>
+
+  <h3>Problem 1: DuckDuckGo Fails → Returns Zero Prices</h3>
+  <p><strong>File:</strong> <code>Comparison_Analysis/app/routers/price_analysis.py</code></p>
+  <p>
+    DuckDuckGo is rate-limited for automated queries. When it returned empty results, the old
+    prompt told the LLM <em>"set all values to 0"</em> and the <code>_fallback_estimate()</code>
+    function always returned <code>{low: 0, high: 0, average: 0}</code> — making the frontend
+    display no prices.
+  </p>
+
+  <h4>Fix 1a — Tavily Fallback Search</h4>
+  <p>
+    When DuckDuckGo returns no snippets, the endpoint now tries <strong>Tavily</strong> (which
+    was already initialized in <code>app.state.tavily</code> but never used in price analysis).
+    If Tavily finds results, those snippets are passed to the LLM prompt instead of
+    <code>"No search results found."</code>:
+  </p>
+  <pre><code>if not snippets_text:
+    tavily = getattr(req.app.state, "tavily", None)
+    if tavily:
+        tavily_result = await tavily.search(f"{make} {model} {year} price Egypt EGP")
+        if tavily_result and tavily_result.get("results"):
+            # Format Tavily results as snippets for the LLM prompt
+            ...</code></pre>
+
+  <h4>Fix 1b — LLM Knowledge-Based Fallback</h4>
+  <p>
+    When both DuckDuckGo <strong>and</strong> Tavily fail, the new <code>_fallback_estimate</code>
+    function asks the LLM directly for a price estimate based on its training knowledge
+    instead of returning zeros:
+  </p>
+  <pre><code>async def _fallback_estimate(llm, make, model, year):
+    if llm:
+        # Ask LLM: "estimate price for {year} {make} {model} in Egypt"
+        # Returns { "estimated_range": { "low", "high", "average" } }
+        ...
+    # Only if LLM also fails: return 0/0/0 with summary</code></pre>
+
+  <h4>Fix 1c — Prompt Change: No More "Set All to 0"</h4>
+  <p>
+    The <code>PRICE_SYSTEM</code> and <code>PRICE_HUMAN_TEMPLATE</code> prompts were changed
+    from <em>"set all values to 0"</em> to <em>"use your knowledge of the Egyptian car market
+    to provide a reasonable estimate"</em>, allowing the LLM to produce prices even without
+    web search hits.
+  </p>
+
+  <h3>Problem 2: No Qdrant Listings → Generic Tips Instead of Prices</h3>
+  <p><strong>File:</strong> <code>Chatbot/app/graph/nodes/seller_node.py</code></p>
+  <p>
+    When the user asks <em>"how much is my BMW 2020 worth?"</em> but no comparable listings
+    exist in Qdrant, <code>price_analysis</code> was <code>None</code>, and the node fell back
+    to <code>TIPS_SYSTEM</code> — which gives photography/listing advice <strong>without any
+    price numbers</strong>. Very frustrating for users asking for a price.
+  </p>
+
+  <h4>Fix 2 — Web-to-Price Prompt Fallback</h4>
+  <p>
+    A new <code>PRICING_WEB_SYSTEM</code> prompt was added. The logic now chooses between three
+    paths instead of two:
+  </p>
+  <pre><code>if seller_intent == "pricing":
+    if price_analysis:
+        # Path A: Qdrant data exists → PRICING_SYSTEM (hard numbers)
+    elif web_context:
+        # Path B: No Qdrant, but web search found context → PRICING_WEB_SYSTEM
+    else:
+        # Path C: Nothing → TIPS_SYSTEM (listing advice only)</code></pre>
+  <p>
+    The new <code>PRICING_WEB_SYSTEM</code> prompt tells the LLM: <em>"use your expertise to
+    estimate a reasonable price range for the Egyptian market. Be specific — provide an estimated
+    price range in EGP."</em> This ensures users always get a price estimate even without
+    Qdrant data.
+  </p>
+
+  <h3>Combined Impact</h3>
+  <p>
+    With all three fixes, the AI pricing pipeline now has <strong>4 layers of fallback</strong>
+    before returning no data:
+  </p>
+  <ol>
+    <li><strong>Qdrant listing data</strong> (most accurate — from active marketplace listings)</li>
+    <li><strong>DuckDuckGo web search</strong> (current market prices from Egyptian car sites)</li>
+    <li><strong>Tavily web search</strong> (AI-summarized market research as fallback)</li>
+    <li><strong>LLM knowledge</strong> (the AI's training data about Egyptian car prices)</li>
+  </ol>
+  <p>
+    Only if all four layers fail does the system return <code>0</code>/<code>"No market data available"</code>.
+  </p>
+
+  <!-- ================================================================ -->
+  <!-- SECTION 13: VOICE ASSISTANT                                      -->
+  <!-- ================================================================ -->
+  <h2>13. Voice Assistant</h2>
   <p>
     The chatbot includes a voice I/O subsystem within the Chatbot microservice (:8001), enabling
     speech-to-text (STT) and text-to-speech (TTS) capabilities. Voice endpoints are proxied through
@@ -1868,62 +2594,179 @@ Instrumentator().instrument(app).expose(app)</code></pre>
     <tbody>
       <tr>
         <td><strong>Speech-to-Text</strong></td>
-        <td><code>app/voice/stt.py</code></td>
+        <td><code>Chatbot/app/voice/stt.py</code></td>
         <td>Groq Whisper <code>whisper-large-v3-turbo</code></td>
-        <td>Returns text + language + confidence. Supports webm, wav, mp3, m4a, ogg, flac. Falls back across 3 Groq API keys. Max 25MB file size.</td>
+        <td>Returns text + language + confidence. Supports webm, wav, mp3, m4a, ogg, flac. Falls back across 3 Groq API keys. Max 25MB file size. The <code>transcribe_audio()</code> function iterates through keys (<code>[groq_api_key, groq_api_key_fallback, groq_api_key_fallback2]</code>) until one returns HTTP 200.</td>
       </tr>
       <tr>
         <td><strong>Text-to-Speech</strong></td>
-        <td><code>app/voice/tts.py</code></td>
+        <td><code>Chatbot/app/voice/tts.py</code></td>
         <td><code>edge-tts</code> (Microsoft Edge TTS)</td>
-        <td>Arabic: <code>ar-EG-SalmaNeural</code>, English: <code>en-US-JennyNeural</code>. Returns audio/mpeg. Max 2000 characters.</td>
+        <td>Arabic: <code>ar-EG-SalmaNeural</code>, English: <code>en-US-JennyNeural</code>. Returns audio/mpeg stream. Max 2000 characters. The <code>synthesize_speech()</code> function streams the TTS output in chunks and concatenates them into a single bytes object.</td>
       </tr>
       <tr>
         <td><strong>Voice Router</strong></td>
-        <td><code>app/voice/router.py</code></td>
+        <td><code>Chatbot/app/voice/router.py</code></td>
         <td>FastAPI <code>APIRouter(prefix="/voice")</code></td>
-        <td><code>POST /voice/stt</code> (multipart) + <code>POST /voice/tts</code> (JSON).</td>
+        <td><code>POST /voice/stt</code> (multipart file upload) and <code>POST /voice/tts</code> (JSON body). Handles validation, error mapping, and returns structured responses.</td>
       </tr>
       <tr>
-        <td><strong>Backend Proxy</strong></td>
-        <td><code>Backend/app/routers/chat.py</code></td>
-        <td>HTTP proxy to chatbot service</td>
-        <td><code>POST /api/v1/chat/stt</code> and <code>POST /api/v1/chat/tts</code> forward to chatbot :8001.</td>
+        <td><strong>Backend Proxy (STT)</strong></td>
+        <td><code>Backend/app/routers/chat.py :proxy_stt()</code></td>
+        <td>HTTP proxy with <code>httpx.AsyncClient</code> (120s timeout)</td>
+        <td>Accepts <code>audio: UploadFile</code>, forwards raw bytes to <code>{CHATBOT_URL}/voice/stt</code>, returns JSON <code>{ text, language }</code>.</td>
       </tr>
       <tr>
-        <td><strong>Frontend Hook</strong></td>
+        <td><strong>Backend Proxy (TTS)</strong></td>
+        <td><code>Backend/app/routers/chat.py :proxy_tts()</code></td>
+        <td>HTTP proxy with <code>httpx.AsyncClient</code> (60s timeout)</td>
+        <td>Accepts JSON <code>{ text, language }</code>, forwards to <code>{CHATBOT_URL}/voice/tts</code>, returns <code>audio/mpeg</code> with <code>X-Voice-Language</code> header.</td>
+      </tr>
+      <tr>
+        <td><strong>Frontend Hook: useVoice</strong></td>
         <td><code>Frontend/hooks/useVoice.ts</code></td>
-        <td>React hooks + MediaRecorder API</td>
-        <td>Records via <code>getUserMedia</code>, sends blob to <code>/chat/stt</code>, returns transcript. Supports <code>start/stop/cancel</code>.</td>
+        <td>React + MediaRecorder API</td>
+        <td>Records via <code>getUserMedia({ audio: true })</code> → <code>MediaRecorder</code> with <code>audio/webm</code> (or <code>audio/mp4</code> fallback). <code>startRecording()</code> captures audio chunks; <code>stopRecording()</code> assembles a Blob and POSTs it to <code>/api/v1/chat/stt</code>; <code>cancelRecording()</code> aborts without sending. States: <code>idle</code> → <code>recording</code> → <code>processing</code> → <code>error</code>.</td>
       </tr>
       <tr>
-        <td><strong>TTS Hook</strong></td>
+        <td><strong>Frontend Hook: useTTS</strong></td>
         <td><code>Frontend/hooks/useTTS.ts</code></td>
-        <td>React hook + Web Audio API</td>
-        <td>Sends text to <code>/chat/tts</code>, plays returned audio. Supports <code>speak/stop</code> with state tracking.</td>
+        <td>React + Web Audio API</td>
+        <td><code>speak(text, language)</code> sends a POST to <code>/chat/tts</code>, receives MP3 blob, creates an <code>ObjectURL</code>, and plays it via <code>new Audio(url)</code>. Stops any previous playback automatically. <code>stop()</code> pauses and cleans up the blob URL. States: <code>idle</code> → <code>loading</code> → <code>playing</code> → <code>error</code>. Cleanup uses <code>URL.revokeObjectURL()</code> to free memory.</td>
       </tr>
       <tr>
-        <td><strong>Chat Input</strong></td>
+        <td><strong>Chat Input Component</strong></td>
         <td><code>Frontend/components/chat/ChatInput.tsx</code></td>
-        <td>React component</td>
-        <td>Mic button integrated into input bar. Uses <code>useVoice</code> hook for recording.</td>
+        <td>React component + <code>lucide-react</code> icons</td>
+        <td>Mic button rendered when <code>voiceSupported</code> is <code>true</code>. Shows <code>Mic</code> icon in idle, <code>Loader2</code> spinner when processing. Recording UI includes pulsing red dot, <code>MM:SS</code> timer, <code>LiveWaveform</code> component, and stop button. Disabled during streaming.</td>
       </tr>
     </tbody>
   </table>
 
   <h3>Flow</h3>
-  <ol>
-    <li>User presses mic button in <code>ChatInput</code> — <code>useVoice.startRecording()</code> activates <code>MediaRecorder</code>.</li>
-    <li>User releases mic — recording stops, WebM blob is sent to <code>POST /api/v1/chat/stt</code>.</li>
-    <li>Backend proxies to chatbot's <code>POST /voice/stt</code> → Groq Whisper transcribes → returns <code>{text, language, confidence}</code>.</li>
-    <li>Frontend receives transcribed text and submits it as a chat message.</li>
-    <li>Optionally, AI response can be read aloud via <code>useTTS.speak()</code> → <code>POST /chat/tts</code> → edge-tts → audio playback.</li>
-  </ol>
+  <div class="diagram-wrapper">
+    <pre class="mermaid">
+      sequenceDiagram
+        participant U as User
+        participant F as Frontend
+        participant B as Backend Proxy
+        participant C as Chatbot
+        participant G as Groq Whisper API
+        participant E as edge-tts
+
+        U->>F: Press mic button
+        F->>F: useVoice.startRecording()
+        Note over F: MediaRecorder captures audio chunks
+
+        U->>F: Release mic / press stop
+        F->>F: useVoice.stopRecording()
+        Note over F: Assembles Blob from chunks
+
+        F->>B: POST /api/v1/chat/stt
+        Note over F: multipart FormData: audio=recording.webm
+
+        B->>C: POST /voice/stt
+        Note over B: proxies raw audio bytes
+
+        C->>G: POST https://api.groq.com/...
+        Note over C: whisper-large-v3-turbo
+        G-->>C: { text, language, segments[] }
+
+        C-->>B: { text, language, confidence }
+        B-->>F: { text: "..." }
+
+        F->>F: onSend(result.text, result.language)
+        Note over F: transcribed text submitted as chat message
+
+        alt TTS playback (optional)
+          F->>B: POST /api/v1/chat/tts {text, language}
+          B->>C: POST /voice/tts {text, language}
+          C->>E: edge_tts.Communicate(text, voice)
+          E-->>C: audio/mpeg chunks
+          C-->>B: audio/mpeg bytes
+          B-->>F: audio/mpeg with X-Voice-Language
+          F->>F: useTTS.speak() -> new Audio(url).play()
+          F-->>U: AI response read aloud
+        end
+
+        style U fill:#3b82f6,color:#fff,stroke:none
+        style F fill:#1a1d27,stroke:#3b82f6,color:#e4e6f0
+        style B fill:#1a1d27,stroke:#6b7280,color:#e4e6f0
+        style C fill:#8b5cf6,color:#fff,stroke:none
+        style G fill:#22c55e,color:#fff,stroke:none
+        style E fill:#f59e0b,color:#fff,stroke:none
+    </pre>
+  </div>
+
+  <h3>Detailed Implementation</h3>
+
+  <h4>STT — Audio Transcription (<code>Chatbot/app/voice/stt.py</code>)</h4>
+  <ul>
+    <li><strong>Endpoint:</strong> Groq API <code>POST /openai/v1/audio/transcriptions</code> with model <code>whisper-large-v3-turbo</code>.</li>
+    <li><strong>Key fallback logic:</strong> The function builds a list of 1–3 Groq API keys (<code>groq_api_key</code>, <code>groq_api_key_fallback</code>, <code>groq_api_key_fallback2</code>) and tries each sequentially. If all fail, raises <code>RuntimeError("STT service returned {code}")</code>.</li>
+    <li><strong>File format handling:</strong> Extracts file extension from <code>filename</code>. If unsupported or missing, defaults to <code>webm</code>. Allowed: <code>webm, wav, mp3, m4a, ogg, flac</code>.</li>
+    <li><strong>Size limit:</strong> 25MB maximum file size (<code>MAX_FILE_SIZE = 25 * 1024 * 1024</code>). Raises <code>ValueError</code> if exceeded.</li>
+    <li><strong>Confidence:</strong> Extracts per-segment confidence scores from Groq's <code>verbose_json</code> response and computes an average. Returns <code>None</code> if no segments have confidence data.</li>
+    <li><strong>Language detection:</strong> Groq returns the detected language code. If it's not <code>"ar"</code> or <code>"en"</code>, defaults to <code>"en"</code>.</li>
+  </ul>
+
+  <h4>TTS — Speech Synthesis (<code>Chatbot/app/voice/tts.py</code>)</h4>
+  <ul>
+    <li><strong>Engine:</strong> <code>edge-tts</code> (Microsoft Edge Text-to-Speech API via the <code>edge-tts</code> Python package).</li>
+    <li><strong>Voice mapping:</strong> <code>{"ar": "ar-EG-SalmaNeural", "en": "en-US-JennyNeural"}</code>. Unknown languages default to <code>en-US-JennyNeural</code>.</li>
+    <li><strong>Streaming:</strong> Uses <code>edge_tts.Communicate(text, voice).stream()</code> which yields chunks of type <code>{"type": "audio", "data": bytes}</code>. All audio chunks are concatenated into a single bytes object.</li>
+    <li><strong>Max text length:</strong> 2000 characters (<code>MAX_TEXT_LENGTH = 2000</code>). Text is silently truncated before synthesis.</li>
+    <li><strong>Output:</strong> Returns <code>audio/mpeg</code> bytes (MP3 format).</li>
+  </ul>
+
+  <h4>Frontend Recording Logic (<code>Frontend/hooks/useVoice.ts</code>)</h4>
+  <ul>
+    <li><strong>Browser support check:</strong> Verifies <code>navigator.mediaDevices?.getUserMedia</code> and <code>MediaRecorder</code> are available.</li>
+    <li><strong>MIME type selection:</strong> Prefers <code>audio/webm</code>, falls back to <code>audio/mp4</code>.</li>
+    <li><strong>Recording:</strong> <code>startRecording()</code> gets microphone access, creates a <code>MediaRecorder</code>, collects chunks via <code>ondataavailable</code>.</li>
+    <li><strong>Upload:</strong> <code>stopRecording()</code> stops the recorder, stops all media tracks, builds a <code>Blob</code>, appends it to a <code>FormData</code> as <code>recording.webm</code>, and POSTs to <code>{API_URL}/chat/stt</code>. Resolves with <code>{ text, language }</code>.</li>
+    <li><strong>Error handling:</strong> If HTTP response is not OK, throws error with response body. If microphone access is denied, sets state to <code>"error"</code> and re-throws.</li>
+  </ul>
+
+  <h4>Frontend TTS Logic (<code>Frontend/hooks/useTTS.ts</code>)</h4>
+  <ul>
+    <li><strong>Playback:</strong> <code>speak(text, language)</code> stops any current playback first, fetches MP3 from <code>/chat/tts</code>, creates an <code>ObjectURL</code>, creates an <code>Audio</code> element, and plays it.</li>
+    <li><strong>Lifecycle:</strong> Tracks state: <code>idle</code> → <code>loading</code> → <code>playing</code> → <code>idle</code> (on end) or <code>error</code> (on failure). Returns a Promise that resolves when playback ends.</li>
+    <li><strong>Cleanup:</strong> <code>stop()</code> pauses the audio and calls <code>URL.revokeObjectURL()</code> to free the blob URL. Also called automatically when playback ends naturally.</li>
+  </ul>
+
+  <h3>Backend Proxy Routes (<code>Backend/app/routers/chat.py</code>)</h3>
+  <table class="tool-matrix">
+    <thead>
+      <tr><th>Route</th><th>Method</th><th>Input</th><th>Forwarded To</th><th>Timeout</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>POST /api/v1/chat/stt</code></td>
+        <td><code>proxy_stt()</code></td>
+        <td><code>UploadFile (audio)</code></td>
+        <td><code>{CHATBOT_URL}/voice/stt</code></td>
+        <td>120s</td>
+      </tr>
+      <tr>
+        <td><code>POST /api/v1/chat/tts</code></td>
+        <td><code>proxy_tts()</code></td>
+        <td><code>JSON { text, language }</code></td>
+        <td><code>{CHATBOT_URL}/voice/tts</code></td>
+        <td>60s</td>
+      </tr>
+    </tbody>
+  </table>
+  <p>
+    Both proxy routes use <code>httpx.AsyncClient</code> and forward the chatbot response
+    (JSON or audio bytes) directly back to the frontend. Error responses are returned as
+    <code>HTTPException</code> with the original status code.
+  </p>
 
   <!-- ================================================================ -->
-  <!-- SECTION 13: LANGSMITH TRACING                                   -->
+  <!-- SECTION 14: LANGSMITH TRACING                                   -->
   <!-- ================================================================ -->
-  <h2>13. LangSmith Tracing</h2>
+  <h2>14. LangSmith Tracing</h2>
   <p>
     All LLM calls across both services are traced to <strong>LangSmith</strong> for observability.
     Environment variables are loaded at service startup via <code>python-dotenv</code>
@@ -1992,9 +2835,9 @@ Instrumentator().instrument(app).expose(app)</code></pre>
     └── client disconnect check → cancel if dropped</code></pre>
 
   <!-- ================================================================ -->
-  <!-- SECTION 14: DEPLOYMENT                                          -->
+  <!-- SECTION 15: DEPLOYMENT                                          -->
   <!-- ================================================================ -->
-  <h2>14. Deployment</h2>
+  <h2>15. Deployment</h2>
   <p>All services run in Docker containers orchestrated by <code>docker-compose.yml</code> with an Nginx reverse proxy.</p>
 
   <h3>Service Map</h3>
@@ -2091,9 +2934,9 @@ location /               { proxy_pass http://frontend; }    # :3000</code></pre>
   </div>
 
   <!-- ================================================================ -->
-  <!-- SECTION 15: FRONTEND ARCHITECTURE                               -->
+  <!-- SECTION 16: FRONTEND ARCHITECTURE                               -->
   <!-- ================================================================ -->
-  <h2>15. Frontend Architecture</h2>
+  <h2>16. Frontend Architecture</h2>
   <p>Next.js app with App Router, Zustand for state, Framer Motion for animations.</p>
 
   <h3>Key Components</h3>
@@ -2151,9 +2994,9 @@ location /               { proxy_pass http://frontend; }    # :3000</code></pre>
 
   <h3>Voice Integration</h3>
   <ul>
-    <li><code>useVoice</code> (<code>hooks/useVoice.ts</code>) — records audio via <code>MediaRecorder</code> API, sends blob to <code>POST /api/v1/chat/stt</code>, returns transcribed text. States: idle → recording → processing → error.</li>
-    <li><code>useTTS</code> (<code>hooks/useTTS.ts</code>) — sends text to <code>POST /api/v1/chat/tts</code>, plays returned MP3 audio via <code>Audio</code> API. States: idle → loading → playing → error.</li>
-    <li>Mic button integrated into <code>ChatInput</code> component — long-press to record, release to submit.</li>
+    <li><code>useVoice</code> (<code>hooks/useVoice.ts</code>) — records audio via <code>MediaRecorder</code> API, sends blob to <code>POST /api/v1/chat/stt</code>, returns transcribed text. States: idle → recording → processing → error. Browser support check via <code>navigator.mediaDevices?.getUserMedia</code> and <code>MediaRecorder</code> availability. Uses <code>audio/webm</code> MIME type with <code>audio/mp4</code> fallback.</li>
+    <li><code>useTTS</code> (<code>hooks/useTTS.ts</code>) — sends text to <code>POST /api/v1/chat/tts</code>, plays returned MP3 audio via <code>new Audio()</code> with ObjectURL. States: idle → loading → playing → error. Cleans up blob URLs via <code>URL.revokeObjectURL()</code> on stop/end.</li>
+    <li>Mic button integrated into <code>ChatInput</code> component — press to record, press again / release to submit. Shows pulsing red dot, <code>MM:SS</code> timer, and <code>LiveWaveform</code> during recording.</li>
   </ul>
 
   <h3>State Management (Zustand Stores)</h3>

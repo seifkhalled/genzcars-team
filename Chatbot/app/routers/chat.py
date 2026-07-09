@@ -32,6 +32,9 @@ async def chat_message(request: ChatRequest, req: Request):
 
         cost_tracker = CostTracker()
 
+        # Immediate feedback so user knows something is happening
+        yield f"data: {json.dumps({'type': 'status', 'content': '🧠 Thinking...'})}\n\n"
+
         try:
             # Guardrail: input validation
             from app.core.guardrails import validate_input
@@ -45,10 +48,11 @@ async def chat_message(request: ChatRequest, req: Request):
             preferences = {}
             turn_count = 0
             intent_history = []
+            last_shown_ads = []
             pool = getattr(app.state, "pool", None)
             if pool and session_token:
                 try:
-                    from app.db.queries import get_chat_history, get_preferences
+                    from app.db.queries import get_chat_history, get_preferences, get_last_shown_ads
                     db_msgs = await get_chat_history(pool, session_token)
                     for m in db_msgs:
                         if m["role"] == "user":
@@ -73,6 +77,7 @@ async def chat_message(request: ChatRequest, req: Request):
                         preferences = {k: prefs_row.get(k) for k in pref_keys if k in prefs_row}
                         intent_history = prefs_row.get("intent_history", [])
                         turn_count = prefs_row.get("turn_count", 0)
+                    last_shown_ads = await get_last_shown_ads(pool, session_token)
                 except Exception as e:
                     logger.warning("History/preference reload failed: %s: %s", type(e).__name__, str(e)[:200])
             # --- End history reload ---
@@ -112,7 +117,7 @@ async def chat_message(request: ChatRequest, req: Request):
                 "next_node": "",
                 "intent": "",
                 "node_response": "",
-                "retrieved_ads": [],
+                "retrieved_ads": last_shown_ads,
                 "similar_ads": [],
                 "price_analysis": None,
                 "catalogue_check": None,
@@ -135,6 +140,7 @@ async def chat_message(request: ChatRequest, req: Request):
             run_task = asyncio.ensure_future(run_graph())
 
             done_count = 0
+            current_ads = []
             while True:
                 # Check for client disconnect
                 if await req.is_disconnected():
@@ -147,8 +153,10 @@ async def chat_message(request: ChatRequest, req: Request):
                     break
 
                 try:
-                    event = await asyncio.wait_for(queue.get(), timeout=45.0)
-                    if event.get("type") == "done":
+                    event = await asyncio.wait_for(queue.get(), timeout=90.0)
+                    if event.get("type") == "cars":
+                        current_ads = event.get("content", [])
+                    elif event.get("type") == "done":
                         done_count += 1
                         if done_count >= 1:
                             yield f"data: {json.dumps(event)}\n\n"
@@ -166,6 +174,10 @@ async def chat_message(request: ChatRequest, req: Request):
                     pass
             else:
                 await run_task
+
+            if pool and current_ads:
+                from app.db.queries import save_last_shown_ads
+                asyncio.ensure_future(save_last_shown_ads(pool, session_token, current_ads))
 
             usage_summary = cost_tracker.summary()
             if usage_summary["total_llm_calls"] > 0:

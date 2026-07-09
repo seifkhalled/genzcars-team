@@ -7,6 +7,7 @@ from app.enums import TaskType
 from app.graph.state import CarsChatState
 from app.core.hallucination_guard import verify_results
 from app.data.car_features import format_expansions_prompt
+from app.core.ai_metrics import search_quality_total
 from app.data.constants import (
     SEARCH_QUALITY_TOP_SCORE_MIN,
     SEARCH_QUALITY_AVG_SCORE_MIN,
@@ -76,10 +77,13 @@ User message: "{message}"
 
 def evaluate_search_quality(results: list[dict]) -> bool:
     if not results:
+        search_quality_total.labels(service="chatbot", passed="false").inc()
         return False
     avg_score = sum(r.get("score", 0) for r in results) / len(results)
     top_score = results[0].get("score", 0) if results else 0
-    return top_score > SEARCH_QUALITY_TOP_SCORE_MIN or avg_score > SEARCH_QUALITY_AVG_SCORE_MIN
+    passed = top_score > SEARCH_QUALITY_TOP_SCORE_MIN or avg_score > SEARCH_QUALITY_AVG_SCORE_MIN
+    search_quality_total.labels(service="chatbot", passed=str(passed).lower()).inc()
+    return passed
 
 
 def compute_dcg(results: list[dict]) -> float:

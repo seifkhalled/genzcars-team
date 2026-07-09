@@ -38,6 +38,8 @@ function generateBox(id: number): Box {
   }
 }
 
+let nextBoxId = 5
+
 export default function DetectionBoxes() {
   const [boxes, setBoxes] = useState<Box[]>([])
 
@@ -49,10 +51,10 @@ export default function DetectionBoxes() {
       setBoxes((prev) => {
         const keep = prev.filter(() => Math.random() > 0.4)
         if (keep.length < 2) {
-          keep.push(generateBox(Date.now()))
+          keep.push(generateBox(nextBoxId++))
         }
         if (Math.random() > 0.5) {
-          keep.push(generateBox(Date.now()))
+          keep.push(generateBox(nextBoxId++))
         }
         return keep.slice(-6)
       })

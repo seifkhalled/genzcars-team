@@ -72,7 +72,14 @@ async def analyze_car(llm: ChatGroq, ad: dict) -> StructuredAnalysis:
         description=ad.get("description", "N/A"),
     )
 
-    result = await parse_llm_json(llm, SYSTEM_PROMPT, human_msg)
+    brand = ad.get("brand", "Unknown")
+    model_name = ad.get("model", "Unknown")
+    result = await parse_llm_json(
+        llm, SYSTEM_PROMPT, human_msg,
+        task_type="structured_analysis",
+        model_name=f"{brand} {model_name}",
+        provider="groq",
+    )
 
     analysis = StructuredAnalysis(
         summary=result.get("summary", ""),

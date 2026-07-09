@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Deals — AI-Powered Car Marketplace | Presentation</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Cairo:wght@400;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --primary: #2563eb;
+    --primary-dark: #1d4ed8;
+    --accent: #06b6d4;
+    --bg: #0f172a;
+    --bg-card: #1e293b;
+    --text: #f1f5f9;
+    --text-muted: #94a3b8;
+    --border: #334155;
+    --success: #22c55e;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+  }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  .slide-area {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    overflow: hidden;
+  }
+
+  .slide {
+    max-width: 1100px;
+    width: 100%;
+    max-height: 85vh;
+    overflow-y: auto;
+    padding: 48px 56px;
+    background: var(--bg-card);
+    border-radius: 24px;
+    border: 1px solid var(--border);
+    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+    display: none;
+    position: relative;
+  }
+
+  .slide.active { display: block; animation: fadeIn 0.4s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+  .slide::-webkit-scrollbar { width: 6px; }
+  .slide::-webkit-scrollbar-track { background: transparent; }
+  .slide::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .controls {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    display: flex; align-items: center; justify-content: center; gap: 16px;
+    padding: 16px 24px;
+    background: rgba(15,23,42,0.95);
+    backdrop-filter: blur(12px);
+    border-top: 1px solid var(--border);
+    z-index: 100;
+  }
+  .controls button {
+    background: var(--primary); color: white; border: none;
+    padding: 10px 24px; border-radius: 10px; font-size: 14px;
+    font-weight: 600; cursor: pointer; transition: all 0.2s;
+    font-family: 'Inter', sans-serif;
+  }
+  .controls button:hover { background: var(--primary-dark); transform: translateY(-1px); }
+  .controls button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+  .controls .page-indicator { font-size: 14px; color: var(--text-muted); min-width: 80px; text-align: center; font-weight: 500; }
+  .controls .progress-bar { flex: 1; max-width: 400px; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+  .controls .progress-bar .fill { height: 100%; background: linear-gradient(90deg, var(--primary), var(--accent)); transition: width 0.3s ease; }
+  .controls .dot-strip { display: flex; gap: 4px; flex: 1; max-width: 400px; overflow-x: auto; padding: 4px 0; }
+  .controls .dot-strip .dot { min-width: 8px; height: 8px; border-radius: 50%; background: var(--border); cursor: pointer; transition: all 0.2s; flex-shrink: 0; }
+  .controls .dot-strip .dot.active { background: var(--primary); transform: scale(1.3); }
+  .controls .dot-strip .dot.done { background: var(--accent); }
+
+  h1 { font-size: 42px; font-weight: 800; margin-bottom: 8px; }
+  h2 { font-size: 28px; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center; gap: 12px; }
+  h2 .badge { font-size: 13px; font-weight: 600; background: var(--primary); color: white; padding: 2px 12px; border-radius: 20px; flex-shrink: 0; }
+  h3 { font-size: 18px; font-weight: 600; margin-bottom: 10px; color: var(--accent); }
+  p { font-size: 16px; line-height: 1.7; color: var(--text-muted); margin-bottom: 14px; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 14px; }
+  .grid-5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+
+  .card {
+    background: var(--bg); border-radius: 14px; padding: 18px 20px;
+    border: 1px solid var(--border); transition: all 0.2s;
+  }
+  .card:hover { border-color: var(--primary); }
+  .card .icon { font-size: 28px; margin-bottom: 8px; display: block; }
+  .card h4 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  .card p { font-size: 13px; color: var(--text-muted); margin: 0; }
+
+  .tag {
+    display: inline-block; padding: 2px 10px; border-radius: 6px;
+    font-size: 12px; font-weight: 600; margin: 2px;
+  }
+  .tag-blue { background: rgba(37,99,235,0.2); color: #60a5fa; }
+  .tag-cyan { background: rgba(6,182,212,0.2); color: #67e8f9; }
+  .tag-green { background: rgba(34,197,94,0.2); color: #86efac; }
+  .tag-yellow { background: rgba(245,158,11,0.2); color: #fcd34d; }
+  .tag-red { background: rgba(239,68,68,0.2); color: #fca5a5; }
+  .tag-purple { background: rgba(168,85,247,0.2); color: #c084fc; }
+  .tag-orange { background: rgba(249,115,22,0.2); color: #fb923c; }
+
+  .spec-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .spec-table th { text-align: left; color: var(--text-muted); font-weight: 500; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  .spec-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); color: var(--text); }
+
+  .tech-badge {
+    display: inline-block; background: rgba(37,99,235,0.1);
+    border: 1px solid rgba(37,99,235,0.3); border-radius: 8px;
+    padding: 4px 12px; font-size: 12px; font-weight: 500; margin: 2px;
+  }
+
+  /* === DIAGRAM COMPONENTS === */
+  .d-container { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 0; }
+  .d-sectitle { font-size: 12px; font-weight: 700; text-align: center; padding: 6px 16px; border-radius: 6px; letter-spacing: 0.5px; margin-bottom: 6px; }
+  .d-box { border-radius: 10px; padding: 10px 16px; text-align: center; font-size: 12px; font-weight: 600; border: 1px solid; position: relative; }
+  .d-box-sm { padding: 6px 12px; font-size: 11px; }
+  .d-box-lg { padding: 14px 20px; }
+  .d-arrow-down { width: 2px; height: 20px; background: var(--text-muted); margin: 0 auto; position: relative; }
+  .d-arrow-down::after { content: ''; position: absolute; bottom: -4px; left: 50%; transform: translateX(-50%); border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid var(--text-muted); }
+  .d-arrow { width: 2px; height: 18px; background: var(--text-muted); margin: 0 auto; position: relative; flex-shrink: 0; }
+  .d-arrow::after { content: ''; position: absolute; bottom: -4px; left: 50%; transform: translateX(-50%); border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid var(--text-muted); }
+  .d-arrow-right { display: inline-flex; align-items: center; gap: 0; color: var(--text-muted); }
+  .d-arrow-right::after { content: '→'; font-size: 16px; margin: 0 6px; }
+  .box-blue { background: rgba(37,99,235,0.15); border-color: rgba(37,99,235,0.4); color: #93c5fd; }
+  .d-row { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; width: 100%; }
+  .d-col { display: flex; flex-direction: column; align-items: center; }
+  .d-branch { display: flex; gap: 8px; justify-content: center; width: 100%; }
+  .d-branch-item { flex: 1; display: flex; flex-direction: column; align-items: center; min-width: 0; }
+  .d-join { display: flex; align-items: center; width: 100%; position: relative; height: 24px; }
+  .d-join::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--text-muted); }
+  .d-join::after { content: ''; position: absolute; top: -16px; left: 50%; transform: translateX(-50%); width: 2px; height: 16px; background: var(--text-muted); }
+
+  .box-primary { background: rgba(37,99,235,0.15); border-color: rgba(37,99,235,0.4); color: #93c5fd; }
+  .box-accent { background: rgba(6,182,212,0.15); border-color: rgba(6,182,212,0.4); color: #67e8f9; }
+  .box-success { background: rgba(34,197,94,0.15); border-color: rgba(34,197,94,0.4); color: #86efac; }
+  .box-warning { background: rgba(245,158,11,0.15); border-color: rgba(245,158,11,0.4); color: #fcd34d; }
+  .box-danger { background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.4); color: #fca5a5; }
+  .box-purple { background: rgba(168,85,247,0.15); border-color: rgba(168,85,247,0.4); color: #c084fc; }
+  .box-gray { background: rgba(148,163,184,0.1); border-color: rgba(148,163,184,0.3); color: #cbd5e1; }
+
+  .d-label { font-size: 10px; color: var(--text-muted); text-align: center; margin-top: 2px; }
+  .d-sub { font-size: 10px; opacity: 0.7; display: block; margin-top: 2px; }
+
+  .d-section { border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 10px; background: rgba(15,23,42,0.5); width: 100%; }
+  .d-section-title { font-size: 11px; font-weight: 700; color: var(--accent); margin-bottom: 8px; text-align: center; letter-spacing: 1px; text-transform: uppercase; }
+
+  @media (max-width: 768px) {
+    .slide { padding: 28px 24px; max-height: 80vh; }
+    .grid-2, .grid-3, .grid-4, .grid-5 { grid-template-columns: 1fr; }
+    h1 { font-size: 28px; } h2 { font-size: 22px; }
+    .controls .dot-strip { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div style="display:flex; height:100vh;">
+<div class="slide-area">
+
+<!-- ====== SLIDE 0: TITLE ====== -->
+<div class="slide active" data-index="0">
+  <div style="text-align:center; padding: 40px 0;">
+    <div style="font-size:72px; margin-bottom:16px;">🚗</div>
+    <h1 style="font-size:52px; margin-bottom:8px;">Deals</h1>
+    <div style="font-size:24px; color:var(--accent); font-weight:600; margin-bottom:16px;">AI-Powered Car Marketplace for Egypt</div>
+    <p style="font-size:18px; max-width:600px; margin:0 auto 32px;">Smart car buying & selling with artificial intelligence</p>
+    <div style="display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
+      <span class="tag tag-blue">Next.js 16</span>
+      <span class="tag tag-cyan">FastAPI</span>
+      <span class="tag tag-green">LangGraph</span>
+      <span class="tag tag-purple">Qdrant</span>
+      <span class="tag tag-yellow">Docker</span>
+    </div>
+    <div style="margin-top:40px; color:var(--text-muted); font-size:14px;">Deals — Full-Stack AI Car Marketplace</div>
+  </div>
+</div>
+
+<!-- ===== SLIDE 2: PROBLEM ====== -->
+<div class="slide" data-index="1">
+  <h2><span class="badge">01</span> The Problem</h2>
+  <div class="grid-2" style="margin-top:16px;">
+    <div class="card"><span class="icon">📋</span><h4>Fragmented Market</h4><p>Listings scattered across OLX, ContactCars, Hatla2ee, Facebook — no unified view</p></div>
+    <div class="card"><span class="icon">💰</span><h4>No Reliable Pricing</h4><p>Buyers have no easy way to determine fair market value for a specific car</p></div>
+    <div class="card"><span class="icon">🔍</span><h4>Hard to Compare</h4><p>Comparing two cars requires manual research across multiple tabs and websites</p></div>
+    <div class="card"><span class="icon">🗣️</span><h4>No Trusted Advisor</h4><p>No single source for reliable, data-backed buying advice in Egypt</p></div>
+  </div>
+  <p style="margin-top:20px;">The Egyptian used car market lacks a unified, intelligent platform combining search, comparison, and expert advice.</p>
+</div>
+
+<!-- ===== SLIDE 3: SOLUTION ====== -->
+<div class="slide" data-index="2">
+  <h2><span class="badge">02</span> Solution Overview</h2>
+  <p>Deals — full-stack AI car marketplace with 3 microservices + modern frontend, fully containerized.</p>
+  <div class="grid-3" style="margin-top:16px;">
+    <div class="card" style="border-left:3px solid var(--primary);">
+      <h4 style="color:var(--primary);">🧠 AI Chat Assistant</h4>
+      <p>10-node LangGraph conversational agent — searches, advises, compares, guides</p>
+      <div><span class="tag tag-blue">LangGraph</span> <span class="tag tag-cyan">Groq</span></div>
+    </div>
+    <div class="card" style="border-left:3px solid var(--accent);">
+      <h4 style="color:var(--accent);">🔎 Semantic Search</h4>
+      <p>Hybrid vector + BM25 search on Qdrant with field filters and quality evaluation</p>
+      <div><span class="tag tag-cyan">Qdrant</span> <span class="tag tag-green">all-MiniLM-L6-v2</span></div>
+    </div>
+    <div class="card" style="border-left:3px solid var(--success);">
+      <h4 style="color:var(--success);">⚖️ AI Comparison</h4>
+      <p>Head-to-head analysis with web research, scoring, and hallucination guard</p>
+      <div><span class="tag tag-green">OpenRouter</span> <span class="tag tag-yellow">Tavily</span></div>
+    </div>
+    <div class="card" style="border-left:3px solid var(--warning);">
+      <h4 style="color:var(--warning);">🗣️ Voice Assistant</h4>
+      <p>STT via Groq Whisper + TTS via edge-tts — Arabic & English</p>
+      <div><span class="tag tag-yellow">Whisper</span> <span class="tag tag-red">edge-tts</span></div>
+    </div>
+    <div class="card" style="border-left:3px solid #a855f7;">
+      <h4 style="color:#a855f7;">📊 Price Analysis</h4>
+      <p>AI-powered market price estimation from DuckDuckGo + Tavily research</p>
+      <div><span class="tag tag-purple">DuckDuckGo</span> <span class="tag tag-blue">Tavily</span></div>
+    </div>
+    <div class="card" style="border-left:3px solid #f97316;">
+      <h4 style="color:#f97316;">📈 Observability</h4>
+      <p>Prometheus + Grafana + Loki — full metrics, dashboards, and log aggregation</p>
+      <div><span class="tag tag-orange">Grafana</span> <span class="tag tag-blue">Prometheus</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SLIDE 4: SYSTEM ARCHITECTURE ====== -->
+<div class="slide" data-index="3">
+  <h2><span class="badge">03</span> System Architecture</h2>
+  <div class="d-container">
+    <div class="d-box box-gray d-box-lg" style="margin-bottom:4px;">🌐 User Browser</div>
+    <div class="d-arrow"></div>
+    <div class="d-box box-warning d-box-lg" style="margin-bottom:8px;width:100%;max-width:500px;">Nginx Reverse Proxy (:80)<span class="d-sub">/ → frontend:3000 | /api/ → backend:8000 | SSE buffering OFF</span></div>
+    <div class="d-branch" style="gap:20px;">
+      <div class="d-branch-item">
+        <div class="d-arrow"></div>
+        <div class="d-box box-accent d-box" style="width:100%;">Frontend<span class="d-sub">Next.js 16 :3000</span></div>
+        <div class="d-label">SSR + Tailwind + Zustand</div>
+      </div>
+      <div class="d-branch-item">
+        <div class="d-arrow"></div>
+        <div class="d-box box-blue d-box" style="width:100%;">API Gateway<span class="d-sub">FastAPI :8000</span></div>
+        <div class="d-label">JWT Auth | Proxy to services</div>
+      </div>
+    </div>
+    <div class="d-join" style="margin:0 0 8px 0;"></div>
+    <div class="d-branch" style="gap:16px;">
+      <div class="d-branch-item">
+        <div class="d-arrow"></div>
+        <div class="d-box box-success d-box" style="width:100%;">Chatbot<span class="d-sub">FastAPI + LangGraph :8001</span></div>
+        <div class="d-label">10-node state machine</div>
+      </div>
+      <div class="d-branch-item">
+        <div class="d-arrow"></div>
+        <div class="d-box box-purple d-box" style="width:100%;">Comparison<span class="d-sub">FastAPI :8002</span></div>
+        <div class="d-label">Tavily + OpenRouter</div>
+      </div>
+    </div>
+    <div class="d-join" style="margin:4px 0;"></div>
+    <div class="d-section" style="margin-top:8px;">
+      <div class="d-section-title">External Services</div>
+      <div class="d-row">
+        <span class="tag tag-blue">Supabase PG</span>
+        <span class="tag tag-cyan">Qdrant Cloud</span>
+        <span class="tag tag-green">Groq API</span>
+        <span class="tag tag-yellow">OpenRouter</span>
+        <span class="tag tag-purple">Redis</span>
+      </div>
+    </div>
+    <div class="d-section">
+      <div class="d-section-title">Monitoring Stack</div>
+      <div class="d-row">
+        <span class="tag tag-blue">Prometheus :9090</span>
+        <span class="tag tag-orange">Grafana :3001</span>
+        <span class="tag tag-green">Loki :3100</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SLIDE 5: SUPABASE ====== -->
+<div class="slide" data-index="4">
+  <h2><span class="badge">04</span> Supabase PostgreSQL Cloud Database</h2>
+  <p>Hosted PostgreSQL via asyncpg — 1-10 connection pools across 3 services.</p>
+  <div class="grid-2" style="margin-top:16px;">
+    <div>
+      <h3>Core Tables</h3>
+      <table class="spec-table">
+        <tr><th>Table</th><th>Purpose</th></tr>
+        <tr><td><code>ads</code></td><td>Car listings + <code>qdrant_synced</code> flag</td></tr>
+        <tr><td><code>users</code></td><td>User accounts (bcrypt hashed)</td></tr>
+        <tr><td><code>ad_images</code></td><td>Multi-image refs (up to 10)</td></tr>
+        <tr><td><code>favorites</code></td><td>User bookmarks</td></tr>
+        <tr><td><code>chat_messages</code></td><td>History + <code>node_used</code></td></tr>
+        <tr><td><code>chat_sessions</code></td><td>Session + context state</td></tr>
+        <tr><td><code>user_preferences</code></td><td>Car preferences, intents</td></tr>
+        <tr><td><code>ad_views</code></td><td>View tracking</td></tr>
+      </table>
+    </div>
+    <div>
+      <h3>Storage Buckets</h3>
+      <div class="card">
+        <p><strong>Driver:</strong> asyncpg (async pools)</p>
+        <p><strong>Auth:</strong> JWT (python-jose) + bcrypt</p>
+        <p><strong>Storage:</strong> logos, wallpapers, ad images</p>
+        <p><strong>Formats:</strong> JPEG/WebP/PNG, ≤5MB</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SLIDE 6: DOCKER ====== -->
+<div class="slide" data-index="5">
+  <h2><span class="badge">05</span> Docker & Containerization</h2>
+  <p>9 services on <code>cars_net</code> bridge network with health checks and live code reload.</p>
+  <div class="grid-3" style="margin-top:16px;">
+    <div class="card"><span style="font-size:24px;display:block;">🧩</span><h4>backend</h4><p>FastAPI :8000</p><span class="tag tag-blue">python:3.11-slim</span></div>
+    <div class="card"><span style="font-size:24px;display:block;">🧩</span><h4>chatbot</h4><p>LangGraph :8001</p><span class="tag tag-cyan">python:3.11-slim</span></div>
+    <div class="card"><span style="font-size:24px;display:block;">🧩</span><h4>comparison</h4><p>FastAPI :8002</p><span class="tag tag-green">python:3.11-slim</span></div>
+    <div class="card"><span style="font-size:24px;display:block;">🧩</span><h4>frontend</h4><p>Next.js 16 :3000</p><span class="tag tag-yellow">node:20-alpine</span></div>
+    <div class="card"><span style="font-size:24px;display:block;">🧩</span><h4>nginx</h4><p>Reverse proxy :80</p><span class="tag tag-red">nginx:alpine</span></div>
+    <div class="card"><span style="font-size:24px;display:block;">🧩</span><h4>redis</h4><p>Cache :6379</p><span class="tag tag-purple">redis:alpine</span></div>
+    <div class="card"><span style="font-size:24px;display:block;">🧩</span><h4>prometheus</h4><p>Metrics :9090</p><span class="tag tag-blue">prom/prometheus</span></div>
+    <div class="card"><span style="font-size:24px;display:block;">🧩</span><h4>grafana</h4><p>Dashboards :3001</p><span class="tag tag-orange">grafana/grafana</span></div>
+    <div class="card"><span style="font-size:24px;display:block;">🧩</span><h4>loki</h4><p>Logs :3100</p><span class="tag tag-green">grafana/loki</span></div>
+  </div>
+  <div style="margin-top:12px;"><span class="tech-badge">Makefile</span><span class="tech-badge">Health checks</span><span class="tech-badge">Live mounts</span><span class="tech-badge">BuildKit</span></div>
+</div>
+
+<!-- ===== SLIDE 7: NGINX ====== -->
+<div class="slide" data-index="6">
+  <h2><span class="badge">06</span> Nginx Reverse Proxy</h2>
+  <table class="spec-table" style="margin-top:16px;">
+    <tr><th>Location</th><th>Target</th><th>Timeout</th><th>Special</th></tr>
+    <tr><td><code>/api/v1/chat/</code></td><td>backend:8000</td><td>3600s</td><td>Buffering OFF, WebSocket</td></tr>
+    <tr><td><code>/api/v1/compare</code></td><td>backend:8000</td><td>600s</td><td>Buffering OFF, SSE</td></tr>
+    <tr><td><code>/api/</code></td><td>backend:8000</td><td>120s</td><td>Buffering OFF</td></tr>
+    <tr><td><code>/</code></td><td>frontend:3000</td><td>60s</td><td>WebSocket HMR</td></tr>
+  </table>
+  <div class="card" style="margin-top:16px;">
+    <p><strong>Global:</strong> auto workers, 1024 connections, gzip on, client_max_body_size 20M</p>
+  </div>
+</div>
+
+<!-- ===== SLIDE 8: EMBEDDING MODEL ====== -->
+<div class="slide" data-index="7">
+  <h2><span class="badge">07</span> Embedding Model</h2>
+  <div class="grid-2" style="margin-top:16px;">
+    <div>
+      <div class="card" style="border-left:3px solid var(--accent);">
+        <h4 style="color:var(--accent);">Model: all-MiniLM-L6-v2</h4>
+        <p><strong>Dimension:</strong> 384</p>
+        <p><strong>Distance:</strong> Cosine</p>
+        <p><strong>Library:</strong> fastembed</p>
+        <p><strong>Cache:</strong> SHA-256 in-memory (1000 entries, 2hr TTL)</p>
+      </div>
+    </div>
+    <div>
+      <h3>Embedding Text</h3>
+      <div class="card"><code>brand + model + year + body_type + fuel_type + transmission + condition + city + cc_range + description + special_conditions</code></div>
+      <div class="card" style="margin-top:8px;"><span class="tag tag-blue">Backend</span> <span class="tag tag-cyan">Chatbot</span> both load at startup</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SLIDE 9: QDRANT ====== -->
+<div class="slide" data-index="8">
+  <h2><span class="badge">08</span> Qdrant Vector Database</h2>
+  <div class="grid-2" style="margin-top:16px;">
+    <div>
+      <h3>Collection: <code>cars_ads</code></h3>
+      <table class="spec-table">
+        <tr><th>Property</th><th>Value</th></tr>
+        <tr><td>Vectors</td><td>384-dim, Cosine</td></tr>
+        <tr><td>Host</td><td>Qdrant Cloud (AWS)</td></tr>
+      </table>
+      <h3 style="margin-top:14px;">Payload Indexes (11 fields)</h3>
+      <table class="spec-table">
+        <tr><th>Bool</th><th>Float</th><th>Integer</th><th>Keyword</th></tr>
+        <tr><td>is_active</td><td>price</td><td>year, km_driven</td><td>brand,model,city,fuel,transmission,body_type</td></tr>
+      </table>
+    </div>
+    <div>
+      <h3>Point Payload</h3>
+      <div class="card" style="font-size:13px;line-height:1.8;">
+        <code>ad_id</code>, <code>brand</code>, <code>model</code>, <code>year</code>, <code>price</code>,<br>
+        <code>condition</code>, <code>km_driven</code>, <code>fuel_type</code>,<br>
+        <code>transmission</code>, <code>body_type</code>, <code>city</code>,<br>
+        <code>cc_range</code>, <code>is_active</code>, <code>cover_image_url</code>, <code>created_at</code>
+      </div>
+      <div style="margin-top:8px;">
+        <span class="tag tag-green">BM25 text index</span>
+        <span class="tag tag-cyan">Hybrid search</span>
+        <span class="tag tag-yellow">RRF fusion</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SLIDE 10: RAG PIPELINE ====== -->
+<div class="slide" data-index="9">
+  <h2><span class="badge">09</span> RAG Pipeline — Hybrid Search</h2>
+  <div class="d-container">
+    <div class="d-box box-blue d-box-lg">User Query</div>
+    <div class="d-arrow"></div>
+    <div class="d-box box-accent d-box-lg">1. Embed Query → all-MiniLM-L6-v2 → 384-dim vector</div>
+    <div class="d-arrow"></div>
+    <div class="d-box box-success d-box-lg">2. Build Filter: is_active + price range + city + brand + ...</div>
+    <div class="d-arrow"></div>
+    <div class="d-box box-warning d-box-lg">3. Hybrid Search — RRF Fusion</div>
+    <div class="d-branch">
+      <div class="d-branch-item"><div class="d-box box-blue d-box-sm" style="padding:6px 12px;font-size:11px;background:rgba(37,99,235,0.15);border-color:rgba(37,99,235,0.4);color:#93c5fd;">BM25 Full-text<span class="d-sub">text named vector</span></div></div>
+      <div class="d-branch-item"><div class="d-box box-accent d-box-sm" style="padding:6px 12px;font-size:11px;background:rgba(6,182,212,0.15);border-color:rgba(6,182,212,0.4);color:#67e8f9;">Vector Cosine<span class="d-sub">default named vector</span></div></div>
+    </div>
+    <div class="d-join" style="margin:2px 0;"></div>
+    <div class="d-arrow"></div>
+    <div class="d-box box-gray d-box-lg" style="font-size:12px;">4. Quality Evaluation: top_score > 0.65 AND avg_score > 0.5?</div>
+    <div class="d-branch" style="margin-top:4px;">
+      <div class="d-branch-item"><div class="d-box box-success d-box-sm" style="padding:6px 12px;font-size:11px;">✅ Yes → Return results</div></div>
+      <div class="d-branch-item"><div class="d-box box-warning d-box-sm" style="padding:6px 12px;font-size:11px;">🔄 No → Broader retry</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SLIDE 11: INDEXING PIPELINE ====== -->
+<div class="slide" data-index="10">
+  <h2><span class="badge">10</span> Indexing Pipeline</h2>
+  <div class="grid-2" style="margin-top:16px;">
+    <div>
+      <h3>Ad Create / Update</h3>
+      <div class="d-container">
+        <div class="d-box box-blue d-box-sm" style="padding:8px 14px;font-size:12px;">User submits ad</div>
+        <div class="d-arrow" style="height:12px;"></div>
+        <div class="d-box box-accent d-box-sm" style="padding:8px 14px;font-size:12px;">Save to PostgreSQL + Storage</div>
+        <div class="d-arrow" style="height:12px;"></div>
+        <div class="d-box box-gray d-box-sm" style="padding:8px 14px;font-size:12px;">Background: Index to Qdrant</div>
+        <div class="d-arrow" style="height:12px;"></div>
+        <div class="d-box box-success d-box-sm" style="padding:6px 12px;font-size:11px;">Build text → Embed → Upsert</div>
+        <div class="d-arrow" style="height:12px;"></div>
+        <div class="d-box box-warning d-box-sm" style="padding:6px 12px;font-size:11px;">Set qdrant_synced = true</div>
+      </div>
+    </div>
+    <div>
+      <h3>Ad Delete</h3>
+      <div class="d-container">
+        <div class="d-box box-blue d-box-sm" style="padding:8px 14px;font-size:12px;">Ad soft-deleted</div>
+        <div class="d-arrow" style="height:12px;"></div>
+        <div class="d-box box-danger d-box-sm" style="padding:8px 14px;font-size:12px;">Delete point from Qdrant</div>
+        <div class="d-arrow" style="height:12px;"></div>
+        <div class="d-box box-warning d-box-sm" style="padding:6px 12px;font-size:11px;">Set qdrant_synced = false</div>
+      </div>
+      <div class="card" style="margin-top:12px;">
+        <h4>Sync Integrity</h4>
+        <p><code>qdrant_synced</code> column enables audit of index state</p>
+      </div>
+    </div>
+  </div>
+  <div style="margin-top:12px;">
+    <span class="tech-badge">Field-change detection</span>
+    <span class="tech-badge">Background tasks</span>
+    <span class="tech-badge">Idempotent upserts</span>
+  </div>
+</div>
+
+<!-- ===== SLIDE 12: DFD ====== -->
+<div class="slide" data-index="11">
+  <h2><span class="badge">11</span> DFD — Project Data Flow</h2>
+  <div class="d-container">
+    <div class="d-box box-gray d-box-lg" style="margin-bottom:4px;">👤 User</div>
+    <div class="d-branch" style="gap:8px;">
+      <div class="d-branch-item">
+        <div class="d-arrow"></div>
+        <div class="d-box box-accent d-box-sm" style="padding:6px 12px;font-size:11px;width:100%;">Browse Ads</div>
+      </div>
+      <div class="d-branch-item">
+        <div class="d-arrow"></div>
+        <div class="d-box box-success d-box-sm" style="padding:6px 12px;font-size:11px;width:100%;">Search Cars</div>
+      </div>
+      <div class="d-branch-item">
+        <div class="d-arrow"></div>
+        <div class="d-box box-warning d-box-sm" style="padding:6px 12px;font-size:11px;width:100%;">Chat Assistant</div>
+      </div>
+    </div>
+    <div class="d-join" style="margin:2px 0;"></div>
+    <div class="d-box box-yellow d-box-lg" style="padding:10px 16px;font-size:12px;background:rgba(245,158,11,0.15);border-color:rgba(245,158,11,0.4);color:#fcd34d;margin:4px 0;">🌐 Nginx Reverse Proxy</div>
+    <div class="d-arrow"></div>
+    <div class="d-box box-blue d-box-lg" style="padding:10px 16px;font-size:12px;">⚡ Backend Gateway :8000</div>
+    <div class="d-branch" style="gap:12px;margin:4px 0;">
+      <div class="d-branch-item">
+        <div class="d-arrow"></div>
+        <div class="d-box box-success d-box-sm" style="padding:8px 12px;font-size:11px;width:100%;">Chatbot :8001</div>
+        <div class="d-arrow" style="height:10px;"></div>
+        <div class="d-box box-cyan d-box-sm" style="padding:6px 10px;font-size:10px;background:rgba(6,182,212,0.15);border-color:rgba(6,182,212,0.4);color:#67e8f9;width:100%;">Qdrant Vector DB</div>
+      </div>
+      <div class="d-branch-item">
+        <div class="d-arrow"></div>
+        <div class="d-box box-purple d-box-sm" style="padding:8px 12px;font-size:11px;width:100%;">Comparison :8002</div>
+        <div class="d-arrow" style="height:10px;"></div>
+        <div class="d-box box-yellow d-box-sm" style="padding:6px 10px;font-size:10px;background:rgba(245,158,11,0.15);border-color:rgba(245,158,11,0.4);color:#fcd34d;width:100%;">Tavily + OpenRouter</div>
+      </div>
+    </div>
+    <div class="d-join" style="margin:2px 0;"></div>
+    <div class="d-branch" style="gap:12px;">
+      <div class="d-branch-item"><span class="tag tag-blue">Supabase PG</span></div>
+      <div class="d-branch-item"><span class="tag tag-purple">Redis Cache</span></div>
+      <div class="d-branch-item"><span class="tag tag-green">Groq / OpenRouter</span></div>
+      <div class="d-branch-item"><span class="tag tag-yellow">Tavily / DDG</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SLIDE 13: DATA FLOW — USER → DB → EMBED → QDRANT ====== -->
+<div class="slide" data-index="12">
+  <h2><span class="badge">12</span> Data Flow: User → PG → Embedding → Qdrant</h2>
+  <div class="d-section">
+    <div class="d-section-title">✏️ Write Path — Ad Creation</div>
+    <div class="d-container">
+      <div class="d-box box-gray d-box-sm" style="padding:8px 14px;">User submits ad form</div>
+      <div class="d-arrow" style="height:10px;"></div>
+      <div class="d-box box-blue d-box-sm" style="padding:8px 14px;">POST /api/v1/ads → Nginx → Backend</div>
+      <div class="d-arrow" style="height:10px;"></div>
+      <div class="d-branch">
+        <div class="d-branch-item">
+          <div class="d-box box-accent d-box-sm" style="padding:6px 12px;font-size:11px;">Save to PostgreSQL<span class="d-sub">ads table + storage</span></div>
+        </div>
+        <div class="d-branch-item">
+          <div class="d-box box-success d-box-sm" style="padding:6px 12px;font-size:11px;">Background: Index to Qdrant</div>
+        </div>
+      </div>
+      <div class="d-join" style="margin:2px 0;"></div>
+      <div class="d-row" style="font-size:11px;color:var(--text-muted);gap:16px;margin:4px 0;">
+        <span>a. Build embedding text: <code>"BMW 520 2022 sedan ..."</code></span>
+      </div>
+      <div class="d-row" style="font-size:11px;color:var(--text-muted);gap:16px;">
+        <span>b. <span style="color:var(--success);">Embed → all-MiniLM-L6-v2</span> → 384-dim vector</span>
+      </div>
+      <div class="d-row" style="font-size:11px;color:var(--text-muted);gap:16px;">
+        <span>c. Build payload (15 metadata fields)</span>
+        <span>d. Upsert to Qdrant</span>
+      </div>
+      <div class="d-arrow" style="height:8px;"></div>
+      <div class="d-box box-warning d-box-sm" style="padding:6px 12px;font-size:11px;">Set qdrant_synced = true</div>
+    </div>
+  </div>
+  <div class="d-section">
+    <div class="d-section-title">📖 Read Path — Search</div>
+    <div class="d-container">
+      <div class="d-box box-blue d-box-sm" style="padding:8px 14px;">User types: "cheap reliable sedan Cairo under 500k"</div>
+      <div class="d-arrow" style="height:10px;"></div>
+      <div class="d-box box-accent d-box-sm" style="padding:8px 14px;">GET /api/v1/search?q=...&price_max=500000&city=Cairo</div>
+      <div class="d-arrow" style="height:10px;"></div>
+      <div class="d-branch" style="gap:8px;">
+        <div class="d-branch-item"><div class="d-box box-success d-box-sm" style="padding:6px 12px;font-size:11px;">1. Embed query → 384-dim</div></div>
+        <div class="d-branch-item"><div class="d-box box-warning d-box-sm" style="padding:6px 12px;font-size:11px;">2. Build filter (city+price)</div></div>
+      </div>
+      <div class="d-join" style="margin:2px 0;"></div>
+      <div class="d-box box-gray d-box-sm" style="padding:6px 12px;font-size:11px;">3. Hybrid search: BM25 + Vector → RRF fusion</div>
+      <div class="d-arrow" style="height:8px;"></div>
+      <div class="d-box box-purple d-box-sm" style="padding:6px 12px;font-size:11px;">4. Quality eval → 5. Enrich from PG → Return to user</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SLIDE 14: MULTI-AGENT ARCHITECTURE ====== -->
+<div class="slide" data-index="13">
+  <h2><span class="badge">13</span> Multi-Agent Architecture — Complete Graph</h2>
+  <p>LangGraph <code>StateGraph</code> with 10 specialist nodes, conditional edges, and <code>MemorySaver</code> checkpointer.</p>
+  <div class="d-container" style="margin-top:8px;">
+    <div class="d-box box-gray d-box-sm" style="padding:8px;font-size:12px;max-width:300px;">💬 User Message</div>
+    <div class="d-arrow"></div>
+    <div class="d-box box-blue d-box-lg" style="padding:12px 16px;font-size:12px;">PREFERENCE_EXTRACTOR<span class="d-sub">2-pass NLP: need inference + explicit extraction → DB</span></div>
+    <div class="d-arrow"></div>
+    <div class="d-box box-accent d-box-lg" style="padding:12px 16px;font-size:12px;">ROUTER<span class="d-sub">LLM classifies intent: 1 of 5 categories</span></div>
+    <div class="d-join"></div>
+    <div class="d-branch" style="gap:6px;">
+      <div class="d-branch-item">
+        <div class="d-arrow"></div>
+        <div class="d-box box-warning d-box-sm" style="padding:6px 10px;font-size:11px;">Catalogue<span class="d-sub">Check availability</span></div>
+        <div class="d-branch" style="gap:4px;">
+          <div class="d-branch-item"><div class="d-box box-success d-box-sm" style="padding:4px 8px;font-size:10px;">Found → Search</div></div>
+          <div class="d-branch-item"><div class="d-box box-danger d-box-sm" style="padding:4px 8px;font-size:10px;">Missing→Recommend</div></div>
+        </div>
+      </div>
+      <div class="d-branch-item">
+        <div class="d-arrow"></div>
+        <div class="d-box box-purple d-box-sm" style="padding:6px 10px;font-size:11px;">Advisor<span class="d-sub">Car evaluation</span></div>
+      </div>
+      <div class="d-branch-item">
+        <div class="d-arrow"></div>
+        <div class="d-box box-yellow d-box-sm" style="padding:6px 10px;font-size:11px;background:rgba(245,158,11,0.15);border-color:rgba(245,158,11,0.4);color:#fcd34d;">Seller<span class="d-sub">Pricing + tips</span></div>
+      </div>
+      <div class="d-branch-item">
+        <div class="d-arrow"></div>
+        <div class="d-box box-blue d-box-sm" style="padding:6px 10px;font-size:11px;">Guide<span class="d-sub">How-to topics</span></div>
+      </div>
+      <div class="d-branch-item">
+        <div class="d-arrow"></div>
+        <div class="d-box box-gray d-box-sm" style="padding:6px 10px;font-size:11px;">General<span class="d-sub">Car Q&A</span></div>
+      </div>
+    </div>
+    <div class="d-join"></div>
+    <div class="d-box box-success d-box-lg" style="padding:12px 16px;font-size:12px;">RESPONDER (Terminal)<span class="d-sub">SSE events: status → token → cars → price_analysis → done | Persist to DB</span></div>
+    <div class="d-arrow"></div>
+    <div class="d-box box-gray d-box-sm" style="padding:6px 12px;font-size:11px;">END</div>
+  </div>
+</div>
+
+<!-- ===== SLIDE 15: STATE + TECH STACK ====== -->
+<div class="slide" data-index="14">
+  <h2><span class="badge">14</span> State Machine: CarsChatState & Node Details</h2>
+  <div class="grid-2" style="margin-top:16px;">
+    <div>
+      <h3>State (14 fields)</h3>
+      <table class="spec-table">
+        <tr><th>Field</th><th>Writer</th></tr>
+        <tr><td><code>messages</code></td><td>responder</td></tr>
+        <tr><td><code>intent</code></td><td>router</td></tr>
+        <tr><td><code>next_node</code></td><td>router, catalogue</td></tr>
+        <tr><td><code>session_token</code></td><td>external</td></tr>
+        <tr><td><code>user_id</code></td><td>external</td></tr>
+        <tr><td><code>context_ad_id</code></td><td>external</td></tr>
+        <tr><td><code>retrieved_ads</code></td><td>search, recommend</td></tr>
+        <tr><td><code>similar_ads</code></td><td>advisor</td></tr>
+        <tr><td><code>price_analysis</code></td><td>seller</td></tr>
+        <tr><td><code>node_response</code></td><td>all specialists</td></tr>
+        <tr><td><code>catalogue_check</code></td><td>catalogue</td></tr>
+        <tr><td><code>recommendations</code></td><td>recommendation</td></tr>
+        <tr><td><code>turn_count</code></td><td>pref. extractor</td></tr>
+        <tr><td><code>intent_history</code></td><td>router</td></tr>
+      </table>
+    </div>
+    <div>
+      <h3>LLM Calls per Node</h3>
+      <table class="spec-table">
+        <tr><th>Node</th><th>LLM Calls</th><th>Tools</th></tr>
+        <tr><td>Pref. Extractor</td><td>2</td><td>brand_origins, DB</td></tr>
+        <tr><td>Router</td><td>1</td><td>—</td></tr>
+        <tr><td>Catalogue</td><td>1</td><td>MCP check_catalogue</td></tr>
+        <tr><td>Search</td><td>2</td><td>MCP search, get_images</td></tr>
+        <tr><td>Recommend</td><td>1</td><td>MCP search, get_images</td></tr>
+        <tr><td>Advisor</td><td>3</td><td>MCP find_similar, web</td></tr>
+        <tr><td>Seller</td><td>2</td><td>MCP analyze_price, web</td></tr>
+        <tr><td>Guide</td><td>2</td><td>MCP website_guide</td></tr>
+        <tr><td>General</td><td>2</td><td>MCP web_search</td></tr>
+        <tr><td>Responder</td><td>0</td><td>SSE, DB</td></tr>
+      </table>
+      <div class="card" style="margin-top:8px;">
+        <h4>LLM Routing</h4>
+        <p>Simple: Groq <code>openai/gpt-oss-120b</code> (0.0, cached)</p>
+        <p>Complex: Groq <code>qwen3.6-27b</code> → OpenRouter fallback (0.3)</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SLIDE 16: LLM FALLBACK ====== -->
+<div class="slide" data-index="15">
+  <h2><span class="badge">15</span> Multi-LLM Fallback Chain</h2>
+  <table class="spec-table" style="margin-top:16px;">
+    <tr><th>Provider</th><th>Model</th><th>Use</th><th>Temp</th></tr>
+    <tr><td><span class="tag tag-green">Groq (Fast)</span></td><td><code>openai/gpt-oss-120b</code></td><td>Routing, extraction</td><td>0.0</td></tr>
+    <tr><td><span class="tag tag-cyan">Groq (Powerful)</span></td><td><code>qwen3.6-27b</code></td><td>Complex reasoning</td><td>0.3</td></tr>
+    <tr><td><span class="tag tag-purple">OpenRouter</span></td><td><code>nemotron-3-nano</code></td><td>Fallback complex</td><td>0.3</td></tr>
+    <tr><td><span class="tag tag-yellow">OpenRouter (Vision)</span></td><td><code>gemini-2.0-flash-exp</code></td><td>Image + comparison</td><td>0.1-0.2</td></tr>
+    <tr><td><span class="tag tag-blue">Groq (Backend)</span></td><td><code>llama-3.3-70b</code></td><td>Comparison analysis</td><td>0.2</td></tr>
+  </table>
+  <div class="grid-2" style="margin-top:16px;">
+    <div class="card">
+      <h4>Fallback Logic</h4>
+      <div style="font-size:13px;line-height:1.7;">
+        1. Try primary (simple→fast, complex→powerful)<br>
+        2. Fail → OpenRouter<br>
+        3. Fail → Groq fast model<br>
+        4. All fail → RuntimeError<br>
+        Timeouts: 25s / 60s streaming
+      </div>
+    </div>
+    <div class="card">
+      <h4>MCP Tools (10)</h4>
+      <div style="font-size:12px;line-height:1.7;">
+        <code>search_cars</code>, <code>find_similar_cars</code>,<br>
+        <code>check_catalogue</code>, <code>analyze_market_price</code>,<br>
+        <code>web_search</code>, <code>get_car_images</code>,<br>
+        <code>get_website_guide</code>, <code>expand_brand_origins</code>,<br>
+        <code>expand_colloquial_terms</code>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SLIDE 17: COMPARISON ENGINE ====== -->
+<div class="slide" data-index="16">
+  <h2><span class="badge">16</span> AI Car Comparison Engine</h2>
+  <p>Two parallel implementations — SSE streaming, web research, scoring, hallucination guards.</p>
+  <div class="grid-2" style="margin-top:16px;">
+    <div>
+      <h3>Pipeline</h3>
+      <div class="d-container">
+        <div class="d-box box-blue d-box-sm" style="padding:6px 12px;font-size:11px;">Load ads from PG</div>
+        <div class="d-arrow" style="height:8px;"></div>
+        <div class="d-box box-accent d-box-sm" style="padding:6px 12px;font-size:11px;">Web research (Tavily, 3 queries)</div>
+        <div class="d-arrow" style="height:8px;"></div>
+        <div class="d-box box-purple d-box-sm" style="padding:6px 12px;font-size:11px;">Analyze (OpenRouter → Groq)</div>
+        <div class="d-arrow" style="height:8px;"></div>
+        <div class="d-box box-green d-box-sm" style="padding:6px 12px;font-size:11px;background:rgba(34,197,94,0.15);border-color:rgba(34,197,94,0.4);color:#86efac;">Compare + hallucination guard</div>
+        <div class="d-arrow" style="height:8px;"></div>
+        <div class="d-box box-warning d-box-sm" style="padding:6px 12px;font-size:11px;">Cache → SSE report event</div>
+      </div>
+    </div>
+    <div>
+      <h3>Scoring (0-10)</h3>
+      <table class="spec-table">
+        <tr><th>Category</th><th>Description</th></tr>
+        <tr><td>Value for money</td><td>Price vs. market</td></tr>
+        <tr><td>Reliability</td><td>Brand/model reputation</td></tr>
+        <tr><td>Running cost</td><td>Fuel + maintenance</td></tr>
+        <tr><td>Resale value</td><td>Depreciation estimate</td></tr>
+        <tr><td>Overall</td><td>Combined score</td></tr>
+      </table>
+      <div class="card" style="margin-top:8px;">
+        <h4>Hallucination Guard (5 checks)</h4>
+        <div style="font-size:12px;">Claim trace-back · No accident claims without visuals · No mechanical faults · Confidence consistency · Winner validity</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SLIDE 18: PRICE ANALYSIS ====== -->
+<div class="slide" data-index="17">
+  <h2><span class="badge">17</span> AI Price Analysis</h2>
+  <div class="grid-2" style="margin-top:16px;">
+    <div>
+      <div class="d-container">
+        <div class="d-box box-blue d-box-sm" style="padding:6px 12px;font-size:11px;">POST /price-analysis {make, model, year}</div>
+        <div class="d-arrow" style="height:8px;"></div>
+        <div class="d-box box-accent d-box-sm" style="padding:6px 12px;font-size:11px;">Check Redis cache (TTL 3600s)</div>
+        <div class="d-arrow" style="height:8px;"></div>
+        <div class="d-box box-success d-box-sm" style="padding:6px 12px;font-size:11px;">DuckDuckGo (7 queries) → Tavily fallback</div>
+        <div class="d-arrow" style="height:8px;"></div>
+        <div class="d-box box-warning d-box-sm" style="padding:6px 12px;font-size:11px;">Groq extracts low/high/average EGP prices</div>
+        <div class="d-arrow" style="height:8px;"></div>
+        <div class="d-box box-purple d-box-sm" style="padding:6px 12px;font-size:11px;">Response: {range, confidence, summary, sources}</div>
+      </div>
+    </div>
+    <div>
+      <div class="card" style="font-size:13px;">
+        <code>make</code> — "BMW"<br>
+        <code>model</code> — "520i"<br>
+        <code>year</code> — 2022<br>
+        <code>estimated_range</code> — { low, high, average } in EGP<br>
+        <code>confidence</code> — "high/medium/low"<br>
+        <code>summary</code> — 2-3 sentence analysis<br>
+        <code>sources</code> — up to 10 { title, url }
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SLIDE 19: CACHING ====== -->
+<div class="slide" data-index="18">
+  <h2><span class="badge">18</span> Redis Caching Strategy</h2>
+  <p>Graceful degradation — if Redis unreachable, ops become no-ops.</p>
+  <div class="grid-2" style="margin-top:16px;">
+    <div>
+      <h3>Backend</h3>
+      <table class="spec-table">
+        <tr><th>Key</th><th>TTL</th><th>Data</th></tr>
+        <tr><td><code>cache:brand-counts</code></td><td>300s</td><td>Brand ad counts + logos</td></tr>
+        <tr><td><code>cache:site-assets</code></td><td>3600s</td><td>Logo + wallpaper URLs</td></tr>
+        <tr><td><code>cache:analytics-stats</code></td><td>300s</td><td>Total ads, users, sessions</td></tr>
+        <tr><td><code>cache:compare-ai:{id1}:{id2}</code></td><td>1800s</td><td>Full comparison SSE stream</td></tr>
+      </table>
+    </div>
+    <div>
+      <h3>Comparison & Chatbot</h3>
+      <table class="spec-table">
+        <tr><th>Key / Cache</th><th>TTL</th><th>Data</th></tr>
+        <tr><td><code>compare:{md5}:{lang}</code></td><td>3600s</td><td>Comparison report</td></tr>
+        <tr><td><code>price:{make}:{model}:{year}</code></td><td>3600s</td><td>Price analysis</td></tr>
+        <tr><td><span class="tag tag-purple">embedding_cache</span></td><td>7200s</td><td>384-dim vectors (in-memory)</td></tr>
+        <tr><td><span class="tag tag-purple">llm_response_cache</span></td><td>120s</td><td>Simple LLM responses</td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SLIDE 20: VOICE ASSISTANT ====== -->
+<div class="slide" data-index="19">
+  <h2><span class="badge">19</span> Voice Assistant — Phase 1</h2>
+  <div class="d-container">
+    <div class="d-box box-gray d-box-sm" style="padding:8px;font-size:12px;">User speaks 🎤</div>
+    <div class="d-arrow"></div>
+    <div class="d-box box-blue d-box-sm" style="padding:8px;font-size:12px;">MediaRecorder (webm/opus, max 25MB)</div>
+    <div class="d-arrow"></div>
+    <div class="d-box box-accent d-box-sm" style="padding:8px;font-size:12px;">POST /chat/stt → Backend → Chatbot</div>
+    <div class="d-arrow"></div>
+    <div class="d-box box-success d-box-sm" style="padding:8px;font-size:12px;">Groq Whisper <code>whisper-large-v3-turbo</code><span class="d-sub">3 API key fallbacks</span></div>
+    <div class="d-arrow"></div>
+    <div class="d-box box-purple d-box-sm" style="padding:8px;font-size:12px;">LangGraph chat → SSE events</div>
+    <div class="d-arrow"></div>
+    <div class="d-box box-warning d-box-sm" style="padding:8px;font-size:12px;">TTS: edge-tts (ar-EG-SalmaNeural / en-US-JennyNeural)</div>
+    <div class="d-arrow"></div>
+    <div class="d-box box-gray d-box-sm" style="padding:8px;font-size:12px;">HTMLAudioElement playback</div>
+  </div>
+</div>
+
+<!-- ===== SLIDE 21: MONITORING ====== -->
+<div class="slide" data-index="20">
+  <h2><span class="badge">20</span> Monitoring & Observability</h2>
+  <div class="grid-2" style="margin-top:16px;">
+    <div>
+      <h3>Prometheus</h3>
+      <p>Scrapes all 3 services every 15s at <code>/metrics</code></p>
+      <div class="card">
+        <span class="tag tag-blue">backend:8000</span>
+        <span class="tag tag-cyan">chatbot:8001</span>
+        <span class="tag tag-green">comparison:8002</span>
+      </div>
+      <div class="card" style="margin-top:8px;">
+        <h4>Key Metrics</h4>
+        <div style="font-size:12px;line-height:1.6;">
+          <code>http_requests_total</code> / <code>http_request_duration_seconds</code><br>
+          <code>llm_calls_total{service, task_type}</code><br>
+          <code>llm_tokens_total / llm_latency_seconds</code><br>
+          <code>llm_cost_total_usd / llm_fallback_total</code><br>
+          <code>comparison_requests_total / search_quality_total</code>
+        </div>
+      </div>
+    </div>
+    <div>
+      <h3>Grafana Dashboard</h3>
+      <p>"FastAPI Service Overview" — 9 panels</p>
+      <table class="spec-table">
+        <tr><th>Panel</th><th>Type</th></tr>
+        <tr><td>Requests/sec</td><td>timeseries</td></tr>
+        <tr><td>Duration p50/p95/p99</td><td>timeseries</td></tr>
+        <tr><td>HTTP Error %</td><td>% timeseries</td></tr>
+        <tr><td>LLM Calls/sec</td><td>by service</td></tr>
+        <tr><td>LLM Token Usage</td><td>by service, type</td></tr>
+        <tr><td>LLM Latency</td><td>p50/p95/p99</td></tr>
+        <tr><td>LLM Cost/Hour</td><td>USD</td></tr>
+        <tr><td>Fallback Rate</td><td>by service</td></tr>
+        <tr><td>Search Quality</td><td>pass %</td></tr>
+      </table>
+      <div class="card" style="margin-top:8px;"><h4>Loki + Promtail</h4><p>Auto-discovers Docker containers → pushes logs to Loki</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SLIDE 22: FRONTEND ====== -->
+<div class="slide" data-index="21">
+  <h2><span class="badge">21</span> Frontend Tech Stack</h2>
+  <div class="grid-2" style="margin-top:16px;">
+    <div>
+      <h3>Core Technologies</h3>
+      <div class="card">
+        <span class="tech-badge">Next.js 16</span>
+        <span class="tech-badge">TypeScript</span>
+        <span class="tech-badge">Tailwind CSS 3</span>
+        <span class="tech-badge">Zustand</span>
+        <span class="tech-badge">Framer Motion</span>
+        <span class="tech-badge">Recharts</span>
+        <span class="tech-badge">Lucide React</span>
+        <span class="tech-badge">React Hook Form</span>
+        <span class="tech-badge">Zod</span>
+        <span class="tech-badge">next-intl</span>
+      </div>
+      <div class="card" style="margin-top:8px;">
+        <h4>i18n</h4>
+        <p>Full English + Arabic RTL · Inter + Cairo fonts · RTL layout</p>
+      </div>
+    </div>
+    <div>
+      <h3>Pages</h3>
+      <table class="spec-table">
+        <tr><th>Route</th><th>Feature</th></tr>
+        <tr><td><code>/</code></td><td>Hero + featured cars + brands</td></tr>
+        <tr><td><code>/ads</code></td><td>Grid + filters + search</td></tr>
+        <tr><td><code>/ads/[id]</code></td><td>Detail + AI advisor</td></tr>
+        <tr><td><code>/chat</code></td><td>Full chat + voice input</td></tr>
+        <tr><td><code>/compare</code></td><td>Head-to-head comparison</td></tr>
+        <tr><td><code>/search</code></td><td>Search results</td></tr>
+        <tr><td><code>/profile</code></td><td>User settings</td></tr>
+      </table>
+      <div class="card" style="margin-top:8px;">
+        <h4>Stores</h4>
+        <p><strong>authStore</strong> — JWT, auto-refresh</p>
+        <p><strong>chatStore</strong> — SSE messages, sessions</p>
+        <p><strong>compareStore</strong> — sessionStorage tray</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SLIDE 23: SUMMARY ====== -->
+<div class="slide" data-index="22">
+  <h2><span class="badge">22</span> Summary</h2>
+  <div class="grid-2" style="margin-top:16px;">
+    <div>
+      <h3>What We Built</h3>
+      <div class="card" style="margin-bottom:8px;"><span style="font-size:20px;display:block;">🔎</span><h4>Semantic Car Search</h4><p>Hybrid BM25+vector, 11 filters, quality evaluation</p></div>
+      <div class="card" style="margin-bottom:8px;"><span style="font-size:20px;display:block;">🧠</span><h4>10-Node LangGraph Assistant</h4><p>Multi-agent state machine with 5 specialist nodes</p></div>
+      <div class="card" style="margin-bottom:8px;"><span style="font-size:20px;display:block;">⚖️</span><h4>AI Comparison + Pricing</h4><p>Web-researched, hallucination-guarded, cached</p></div>
+      <div class="card" style="margin-bottom:8px;"><span style="font-size:20px;display:block;">🗣️</span><h4>Voice Assistant</h4><p>Arabic + English STT/TTS with waveform</p></div>
+    </div>
+    <div>
+      <h3>Key Differentiators</h3>
+      <div class="card" style="margin-bottom:8px;"><h4>Multi-LLM Fallback</h4><p>3-tier: Groq → OpenRouter → fallback</p></div>
+      <div class="card" style="margin-bottom:8px;"><h4>Hybrid RAG</h4><p>BM25 + vector fusion + auto-retry</p></div>
+      <div class="card" style="margin-bottom:8px;"><h4>Hallucination Guards</h4><p>5 checks: trace-back, evidence, confidence</p></div>
+      <div class="card" style="margin-bottom:8px;"><h4>Full Observability</h4><p>Prometheus + Grafana + Loki</p></div>
+      <div class="card" style="margin-bottom:8px;"><h4>Docker Microservices</h4><p>9 services, health checks, Makefile</p></div>
+      <div style="text-align:center; margin-top:20px;">
+        <p style="font-size:18px; font-weight:600;">Thank you!</p>
+        <p style="color:var(--text-muted);">Questions & Discussion</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+</div>
+
+<div class="controls">
+  <button onclick="goToSlide(0)">⏮</button>
+  <button onclick="prevSlide()" id="prevBtn">◀ Prev</button>
+  <span class="page-indicator" id="pageIndicator">1 / 23</span>
+  <button onclick="nextSlide()" id="nextBtn">Next ▶</button>
+  <button onclick="goToSlide(totalSlides - 1)">⏭</button>
+  <div class="progress-bar"><div class="fill" id="progressFill" style="width:0%"></div></div>
+  <div class="dot-strip" id="dotStrip"></div>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  let currentSlide = 0;
+  const totalSlides = slides.length;
+
+  function showSlide(index) {
+    if (index < 0 || index >= totalSlides) return;
+    slides.forEach((s, i) => s.classList.toggle('active', i === index));
+    currentSlide = index;
+    document.getElementById('pageIndicator').textContent = `${index + 1} / ${totalSlides}`;
+    document.getElementById('progressFill').style.width = `${((index + 1) / totalSlides) * 100}%`;
+    document.getElementById('prevBtn').disabled = index === 0;
+    document.getElementById('nextBtn').disabled = index === totalSlides - 1;
+    document.querySelectorAll('.dot').forEach((d, i) => {
+      d.classList.toggle('active', i === index);
+      d.classList.toggle('done', i < index);
+    });
+  }
+
+  function nextSlide() { showSlide(currentSlide + 1); }
+  function prevSlide() { showSlide(currentSlide - 1); }
+  function goToSlide(n) { showSlide(n); }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); nextSlide(); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); prevSlide(); }
+  });
+
+  const strip = document.getElementById('dotStrip');
+  for (let i = 0; i < totalSlides; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'dot' + (i === 0 ? ' active' : '');
+    dot.onclick = () => goToSlide(i);
+    strip.appendChild(dot);
+  }
+
+  showSlide(0);
+</script>
+
+</body>
+</html>

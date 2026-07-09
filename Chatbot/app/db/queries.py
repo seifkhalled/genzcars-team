@@ -1,3 +1,4 @@
+import json
 import asyncpg
 from typing import List
 from uuid import UUID
@@ -213,6 +214,27 @@ async def check_catalogue_availability(
             *params,
         )
         return {"count": count, "ads": [dict(r) for r in rows]}
+
+
+async def get_last_shown_ads(pool: asyncpg.Pool, session_token: str) -> list[dict]:
+    async with pool.acquire() as conn:
+        row = await conn.fetchval(
+            "SELECT last_shown_ads FROM chat_sessions WHERE session_token = $1::VARCHAR",
+            session_token,
+        )
+        if isinstance(row, str):
+            return json.loads(row)
+        return row if row else []
+
+
+async def save_last_shown_ads(pool: asyncpg.Pool, session_token: str, ads: list[dict]) -> None:
+    payload = json.dumps(ads)
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE chat_sessions SET last_shown_ads = $1::jsonb WHERE session_token = $2::VARCHAR",
+            payload,
+            session_token,
+        )
 
 
 async def get_ad_images_by_ids(pool: asyncpg.Pool, ad_ids: List[UUID]) -> dict:
