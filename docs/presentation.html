@@ -1,26 +1,36 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Deals — AI-Powered Car Marketplace | Presentation</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Cairo:wght@400;600;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700;800&family=Cairo:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
   :root {
-    --primary: #3b5bdb;
-    --primary-dark: #3451c7;
-    --accent: #0891b2;
     --bg: #f8f9fc;
     --bg-card: #ffffff;
+    --bg-card-hover: #f0f4ff;
     --text: #111827;
     --text-muted: #6b7280;
     --border: #e8ecf4;
+    --primary: #3b5bdb;
+    --primary-dark: #3451c7;
+    --primary-light: #eef2ff;
+    --primary-glow: rgba(59,91,219,0.25);
+    --accent: #0891b2;
+    --accent-light: #ecfeff;
+    --accent-glow: rgba(8,145,178,0.2);
     --success: #16a34a;
+    --success-light: #f0fdf4;
     --warning: #d97706;
+    --warning-light: #fffbeb;
     --danger: #dc2626;
+    --danger-light: #fef2f2;
+    --purple: #9333ea;
+    --purple-light: #faf5ff;
   }
 
   body {
@@ -32,7 +42,13 @@
     width: 100vw;
   }
 
+  #particleCanvas {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    z-index: 0; pointer-events: none;
+  }
+
   .slide-area {
+    position: relative; z-index: 1;
     flex: 1;
     display: flex;
     align-items: center;
@@ -48,49 +64,55 @@
     overflow-y: auto;
     padding: 48px 56px;
     background: var(--bg-card);
-    border-radius: 24px;
     border: 1px solid var(--border);
-    box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 20px 40px -12px rgba(0,0,0,0.1);
+    border-radius: 24px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 20px 40px -12px rgba(0,0,0,0.08);
     display: none;
     position: relative;
   }
 
-  .slide.active { display: block; animation: fadeIn 0.4s ease; }
-  @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+  .slide.active { display: block; animation: slideInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+  @keyframes slideInUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
 
   .slide::-webkit-scrollbar { width: 6px; }
   .slide::-webkit-scrollbar-track { background: transparent; }
   .slide::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
   .controls {
-    position: fixed; bottom: 0; left: 0; right: 0;
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
     display: flex; align-items: center; justify-content: center; gap: 16px;
-    padding: 16px 24px;
+    padding: 10px 20px;
     background: rgba(255,255,255,0.85);
-    backdrop-filter: blur(12px);
-    border-top: 1px solid var(--border);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--border);
+    border-radius: 50px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.08);
     z-index: 100;
   }
   .controls button {
     background: var(--primary); color: white; border: none;
-    padding: 10px 24px; border-radius: 10px; font-size: 14px;
+    padding: 8px 20px; border-radius: 24px; font-size: 13px;
     font-weight: 600; cursor: pointer; transition: all 0.2s;
     font-family: 'Inter', sans-serif;
   }
   .controls button:hover { background: var(--primary-dark); transform: translateY(-1px); }
   .controls button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
-  .controls .page-indicator { font-size: 14px; color: var(--text-muted); min-width: 80px; text-align: center; font-weight: 500; }
-  .controls .progress-bar { flex: 1; max-width: 400px; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+  .controls .page-indicator { font-size: 13px; color: var(--text-muted); min-width: 70px; text-align: center; font-weight: 500; font-family: 'JetBrains Mono', monospace; }
+  .controls .progress-bar { flex: 1; max-width: 300px; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
   .controls .progress-bar .fill { height: 100%; background: linear-gradient(90deg, var(--primary), var(--accent)); transition: width 0.3s ease; }
-  .controls .dot-strip { display: flex; gap: 4px; flex: 1; max-width: 400px; overflow-x: auto; padding: 4px 0; }
+  .controls .dot-strip { display: flex; gap: 4px; flex: 1; max-width: 300px; overflow-x: auto; padding: 4px 0; }
   .controls .dot-strip .dot { min-width: 8px; height: 8px; border-radius: 50%; background: var(--border); cursor: pointer; transition: all 0.2s; flex-shrink: 0; }
-  .controls .dot-strip .dot.active { background: var(--primary); transform: scale(1.3); }
-  .controls .dot-strip .dot.done { background: var(--accent); }
+  .controls .dot-strip .dot.active { background: var(--primary); transform: scale(1.3); box-shadow: 0 0 6px var(--primary-glow); }
+  .controls .dot-strip .dot.done { background: var(--accent); opacity: 0.5; }
 
-  h1 { font-size: 42px; font-weight: 800; margin-bottom: 8px; }
-  h2 { font-size: 28px; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center; gap: 12px; }
-  h2 .badge { font-size: 13px; font-weight: 600; background: var(--primary); color: white; padding: 2px 12px; border-radius: 20px; flex-shrink: 0; }
-  h3 { font-size: 18px; font-weight: 600; margin-bottom: 10px; color: var(--primary); }
+  h1 { font-family: 'Space Grotesk', 'Inter', sans-serif; font-size: 56px; font-weight: 900; margin-bottom: 8px; color: var(--primary); }
+  h2 { font-family: 'Space Grotesk', 'Inter', sans-serif; font-size: 30px; font-weight: 800; margin-bottom: 20px; display: flex; align-items: center; gap: 12px; color: var(--text); }
+  h2 .badge { font-size: 12px; font-weight: 700; background: var(--primary); color: white; padding: 3px 14px; border-radius: 20px; flex-shrink: 0; }
+  h3 { font-family: 'Space Grotesk', 'Inter', sans-serif; font-size: 18px; font-weight: 600; margin-bottom: 10px; color: var(--primary); }
   p { font-size: 16px; line-height: 1.7; color: var(--text-muted); margin-bottom: 14px; }
 
   .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -99,90 +121,166 @@
   .grid-5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
 
   .card {
-    background: var(--bg); border-radius: 14px; padding: 18px 20px;
-    border: 1px solid var(--border); transition: all 0.2s;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px 20px;
+    transition: transform 0.2s ease, border-color 0.2s, box-shadow 0.2s;
   }
-  .card:hover { border-color: #c7d7fe; }
+  .card:hover {
+    transform: translateY(-3px);
+    border-color: #c7d7fe;
+    box-shadow: 0 4px 16px rgba(59,91,219,0.1);
+  }
   .card .icon { font-size: 28px; margin-bottom: 8px; display: block; }
-  .card h4 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  .card h4 { font-size: 15px; font-weight: 600; margin-bottom: 4px; color: var(--text); }
   .card p { font-size: 13px; color: var(--text-muted); margin: 0; }
+
+  .slide.active .card { animation: fadeInCard 0.4s ease forwards; opacity: 0; }
+  .slide.active .card:nth-child(1) { animation-delay: 0.05s; }
+  .slide.active .card:nth-child(2) { animation-delay: 0.1s; }
+  .slide.active .card:nth-child(3) { animation-delay: 0.15s; }
+  .slide.active .card:nth-child(4) { animation-delay: 0.2s; }
+  .slide.active .card:nth-child(5) { animation-delay: 0.25s; }
+  .slide.active .card:nth-child(6) { animation-delay: 0.3s; }
+  @keyframes fadeInCard {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
 
   .tag {
     display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 6px;
-    font-size: 12px; font-weight: 600; margin: 2px;
+    font-size: 12px; font-weight: 600; margin: 2px; border: 1px solid transparent;
   }
   .tag img { height: 14px; width: 14px; flex-shrink: 0; }
-  .tag-blue { background: #eef2ff; color: #3b5bdb; }
-  .tag-cyan { background: #ecfeff; color: #0891b2; }
-  .tag-green { background: #f0fdf4; color: #16a34a; }
-  .tag-yellow { background: #fffbeb; color: #d97706; }
-  .tag-red { background: #fef2f2; color: #dc2626; }
-  .tag-purple { background: #faf5ff; color: #9333ea; }
-  .tag-orange { background: #fff7ed; color: #ea580c; }
+  .tag-blue   { background: var(--primary-light); color: var(--primary); border-color: #c7d7fe; }
+  .tag-cyan   { background: var(--accent-light);  color: var(--accent); border-color: #a5f3fc; }
+  .tag-green  { background: var(--success-light); color: var(--success); border-color: #bbf7d0; }
+  .tag-yellow { background: var(--warning-light); color: var(--warning); border-color: #fde68a; }
+  .tag-red    { background: var(--danger-light);  color: var(--danger); border-color: #fecaca; }
+  .tag-purple { background: var(--purple-light); color: var(--purple); border-color: #e9d5ff; }
+  .tag-orange { background: #fff7ed; color: #ea580c; border-color: #fed7aa; }
 
   .spec-table { width: 100%; border-collapse: collapse; font-size: 14px; }
   .spec-table th { text-align: left; color: var(--text-muted); font-weight: 500; padding: 8px 12px; border-bottom: 1px solid var(--border); }
   .spec-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); color: var(--text); }
+  .spec-table tr:hover td { background: var(--primary-light); }
 
   .tech-badge {
-    display: inline-flex; align-items: center; gap: 4px; background: #eef2ff;
-    border: 1px solid #c7d7fe; border-radius: 8px;
-    padding: 4px 12px; font-size: 12px; font-weight: 500; margin: 2px; color: #3b5bdb;
+    display: inline-flex; align-items: center; gap: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    background: var(--primary-light);
+    border: 1px solid #c7d7fe;
+    border-radius: 8px;
+    padding: 4px 12px; font-size: 11px; font-weight: 500; margin: 2px; color: var(--primary);
   }
   .tech-badge img { height: 14px; width: 14px; flex-shrink: 0; }
 
-  /* === DIAGRAM COMPONENTS === */
   .d-container { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 0; }
   .d-sectitle { font-size: 12px; font-weight: 700; text-align: center; padding: 6px 16px; border-radius: 6px; letter-spacing: 0.5px; margin-bottom: 6px; }
   .d-box { border-radius: 10px; padding: 10px 16px; text-align: center; font-size: 12px; font-weight: 600; border: 1px solid; position: relative; }
   .d-box-sm { padding: 6px 12px; font-size: 11px; }
   .d-box-lg { padding: 14px 20px; }
-  .d-arrow-down { width: 2px; height: 20px; background: var(--text-muted); margin: 0 auto; position: relative; }
-  .d-arrow-down::after { content: ''; position: absolute; bottom: -4px; left: 50%; transform: translateX(-50%); border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid var(--text-muted); }
-  .d-arrow { width: 2px; height: 18px; background: var(--text-muted); margin: 0 auto; position: relative; flex-shrink: 0; }
+
+  .d-arrow-down { width: 2px; height: 20px; margin: 0 auto; position: relative; background: linear-gradient(to bottom, var(--accent), var(--primary)); }
+  .d-arrow-down::after { content: ''; position: absolute; bottom: -4px; left: 50%; transform: translateX(-50%); border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid var(--accent); }
+  .d-arrow { width: 2px; height: 18px; margin: 0 auto; position: relative; flex-shrink: 0; background: var(--text-muted); }
   .d-arrow::after { content: ''; position: absolute; bottom: -4px; left: 50%; transform: translateX(-50%); border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid var(--text-muted); }
+  .d-arrow-down { width: 2px; height: 20px; margin: 0 auto; position: relative; background: linear-gradient(to bottom, var(--accent), var(--primary)); }
+  .d-arrow-down::after { content: ''; position: absolute; bottom: -4px; left: 50%; transform: translateX(-50%); border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid var(--accent); }
+
   .d-arrow-right { display: inline-flex; align-items: center; gap: 0; color: var(--text-muted); }
   .d-arrow-right::after { content: '→'; font-size: 16px; margin: 0 6px; }
-  .box-blue { background: #eef2ff; border-color: #c7d7fe; color: #3b5bdb; }
+
   .d-row { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; width: 100%; }
   .d-col { display: flex; flex-direction: column; align-items: center; }
   .d-branch { display: flex; gap: 8px; justify-content: center; width: 100%; }
   .d-branch-item { flex: 1; display: flex; flex-direction: column; align-items: center; min-width: 0; }
   .d-join { display: flex; align-items: center; width: 100%; position: relative; height: 24px; }
-  .d-join::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--text-muted); }
-  .d-join::after { content: ''; position: absolute; top: -16px; left: 50%; transform: translateX(-50%); width: 2px; height: 16px; background: var(--text-muted); }
+  .d-join::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, var(--accent), transparent); }
+  .d-join::after { content: ''; position: absolute; top: -16px; left: 50%; transform: translateX(-50%); width: 2px; height: 16px; background: linear-gradient(to bottom, var(--accent), transparent); }
 
-  .box-primary { background: #eef2ff; border-color: #c7d7fe; color: #3b5bdb; }
-  .box-accent { background: #ecfeff; border-color: #a5f3fc; color: #0891b2; }
-  .box-success { background: #f0fdf4; border-color: #bbf7d0; color: #16a34a; }
-  .box-warning { background: #fffbeb; border-color: #fde68a; color: #d97706; }
-  .box-danger { background: #fef2f2; border-color: #fecaca; color: #dc2626; }
-  .box-purple { background: #faf5ff; border-color: #e9d5ff; color: #9333ea; }
-  .box-yellow { background: #fffbeb; border-color: #fde68a; color: #d97706; }
-  .box-cyan { background: #ecfeff; border-color: #a5f3fc; color: #0891b2; }
-  .box-gray { background: #f9fafb; border-color: #e5e7eb; color: #6b7280; }
+  .box-blue    { background: var(--primary-light);  border-color: #c7d7fe; color: var(--primary); }
+  .box-accent  { background: var(--accent-light);   border-color: #a5f3fc; color: var(--accent); }
+  .box-success { background: var(--success-light);  border-color: #bbf7d0; color: var(--success); }
+  .box-warning { background: var(--warning-light);  border-color: #fde68a; color: var(--warning); }
+  .box-danger  { background: var(--danger-light);   border-color: #fecaca; color: var(--danger); }
+  .box-purple  { background: var(--purple-light);   border-color: #e9d5ff; color: var(--purple); }
+  .box-yellow  { background: var(--warning-light);  border-color: #fde68a; color: var(--warning); }
+  .box-cyan    { background: var(--accent-light);   border-color: #a5f3fc; color: var(--accent); }
+  .box-gray    { background: #f9fafb;               border-color: #e5e7eb; color: var(--text-muted); }
+  .box-primary { background: var(--primary-light);  border-color: #c7d7fe; color: var(--primary); }
 
   .d-label { font-size: 10px; color: var(--text-muted); text-align: center; margin-top: 2px; }
-  .d-sub { font-size: 10px; opacity: 0.7; display: block; margin-top: 2px; }
+  .d-sub { font-size: 10px; opacity: 0.7; display: block; margin-top: 2px; color: var(--text-muted); }
 
-  .d-section { border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 10px; background: #fafbfc; width: 100%; }
-  .d-section-title { font-size: 11px; font-weight: 700; color: var(--primary); margin-bottom: 8px; text-align: center; letter-spacing: 1px; text-transform: uppercase; }
+  .d-section {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 10px;
+    background: #fafbfc;
+    width: 100%;
+  }
+  .d-section-title { font-size: 10px; font-weight: 700; color: var(--primary); margin-bottom: 8px; text-align: center; letter-spacing: 1.5px; text-transform: uppercase; }
+
+  /* === TITLE SLIDE GLOW === */
+  .title-glow {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    width: 500px; height: 500px;
+    background: radial-gradient(circle, rgba(59,91,219,0.12) 0%, transparent 70%);
+    pointer-events: none; z-index: 0;
+  }
+
+  /* === KEYBOARD HINT === */
+  .kbd-hint {
+    position: fixed; bottom: 28px; left: 24px;
+    font-size: 10px; color: var(--text-muted);
+    z-index: 200; font-family: 'Inter', sans-serif;
+  }
+
+  /* === TRAVELING DOT ON LANGGRAPH ARROWS === */
+  @keyframes travelDot {
+    0%   { left: 0; opacity: 0; }
+    10%  { opacity: 1; }
+    90%  { opacity: 1; }
+    100% { left: 100%; opacity: 0; }
+  }
+  .travel-dot {
+    position: absolute; top: -3px; width: 8px; height: 8px;
+    border-radius: 50%; background: var(--accent);
+    animation: travelDot 2s ease-in-out infinite;
+  }
 
   @media (max-width: 768px) {
     .slide { padding: 28px 24px; max-height: 80vh; }
     .grid-2, .grid-3, .grid-4, .grid-5 { grid-template-columns: 1fr; }
     h1 { font-size: 28px; } h2 { font-size: 22px; }
     .controls .dot-strip { display: none; }
+    .controls { gap: 8px; padding: 8px 14px; }
+    .kbd-hint { display: none; }
+  }
+
+  :fullscreen .controls,
+  :fullscreen .kbd-hint {
+    opacity: 0; pointer-events: none; transition: opacity 0.4s ease;
+  }
+  :fullscreen .controls:hover,
+  :fullscreen .controls:focus-within {
+    opacity: 1; pointer-events: auto;
   }
 </style>
 </head>
 <body>
+
+<canvas id="particleCanvas"></canvas>
 
 <div style="display:flex; height:100vh;">
 <div class="slide-area">
 
 <!-- ====== SLIDE 0: TITLE ====== -->
 <div class="slide active" data-index="0">
+  <div class="title-glow"></div>
   <div style="text-align:center; padding: 40px 0;">
     <img src="logo.png" alt="Deals Logo" style="height:80px; margin-bottom:16px;" onerror="this.style.display='none';document.getElementById('title-fallback').style.display='block'">
     <h1 id="title-fallback" style="font-size:52px; margin-bottom:8px; color:var(--primary); display:none;">Deals</h1>
@@ -199,9 +297,40 @@
   </div>
 </div>
 
-<!-- ===== SLIDE 2: PROBLEM ====== -->
+<!-- ===== SLIDE 1: TEAM MEMBERS ====== -->
 <div class="slide" data-index="1">
-  <h2><span class="badge">01</span> The Problem</h2>
+  <div style="text-align:center; padding:16px 0 24px;">
+    <h2 style="justify-content:center; margin-bottom:6px;">Meet the Team</h2>
+    <p style="font-size:15px; color:var(--text-muted);">DEPI Final Project 2026 — AI-Powered Car Marketplace</p>
+  </div>
+  <div class="grid-3" style="margin-top:8px;">
+    <div class="card" style="text-align:center; padding:28px 20px; border-top:3px solid var(--primary);">
+      <span style="font-size:48px; display:block; margin-bottom:12px;">👤</span>
+      <h4 style="font-size:16px; margin-bottom:6px;">[ Name ]</h4>
+      <p style="font-size:12px; color:var(--primary); font-weight:600; margin-bottom:8px;">[ Role ]</p>
+      <p style="font-size:12px; color:var(--text-muted);">[ Contributions ]</p>
+    </div>
+    <div class="card" style="text-align:center; padding:28px 20px; border-top:3px solid var(--accent);">
+      <span style="font-size:48px; display:block; margin-bottom:12px;">👤</span>
+      <h4 style="font-size:16px; margin-bottom:6px;">[ Name ]</h4>
+      <p style="font-size:12px; color:var(--accent); font-weight:600; margin-bottom:8px;">[ Role ]</p>
+      <p style="font-size:12px; color:var(--text-muted);">[ Contributions ]</p>
+    </div>
+    <div class="card" style="text-align:center; padding:28px 20px; border-top:3px solid var(--success);">
+      <span style="font-size:48px; display:block; margin-bottom:12px;">👤</span>
+      <h4 style="font-size:16px; margin-bottom:6px;">[ Name ]</h4>
+      <p style="font-size:12px; color:var(--success); font-weight:600; margin-bottom:8px;">[ Role ]</p>
+      <p style="font-size:12px; color:var(--text-muted);">[ Contributions ]</p>
+    </div>
+  </div>
+  <div style="margin-top:24px; padding:14px 20px; background:var(--bg); border-radius:12px; border:1px solid var(--border); text-align:center;">
+    <p style="font-size:14px; margin:0;">🎓 <strong>Digital Egypt Pioneers Initiative (DEPI)</strong> — 2026 Cohort</p>
+  </div>
+</div>
+
+<!-- ===== SLIDE 2: PROBLEM ====== -->
+<div class="slide" data-index="2">
+  <h2><span class="badge">02</span> The Problem</h2>
   <div class="grid-2" style="margin-top:16px;">
     <div class="card"><span class="icon">📋</span><h4>Fragmented Market</h4><p>Listings scattered across OLX, ContactCars, Hatla2ee, Facebook — no unified view</p></div>
     <div class="card"><span class="icon">💰</span><h4>No Reliable Pricing</h4><p>Buyers have no easy way to determine fair market value for a specific car</p></div>
@@ -212,8 +341,8 @@
 </div>
 
 <!-- ===== SLIDE 3: SOLUTION ====== -->
-<div class="slide" data-index="2">
-  <h2><span class="badge">02</span> Solution Overview</h2>
+<div class="slide" data-index="3">
+  <h2><span class="badge">03</span> Solution Overview</h2>
   <p>Deals — full-stack AI car marketplace with 3 microservices + modern frontend, fully containerized.</p>
   <div class="grid-3" style="margin-top:16px;">
     <div class="card" style="border-left:3px solid var(--primary);">
@@ -249,9 +378,62 @@
   </div>
 </div>
 
+<!-- ===== SLIDE: USER JOURNEY ====== -->
+<div class="slide" data-index="4">
+  <h2>User Journey — From Search to Decision</h2>
+  <div class="d-section" style="margin-bottom:6px;">
+    <div class="d-section-title">🚗 What a Typical User Does on Deals</div>
+    <div class="d-row" style="gap:8px; margin-bottom:8px;">
+      <div class="card" style="flex:1; text-align:center; padding:16px 12px; border-top:3px solid var(--primary);">
+        <span style="font-size:28px;">🏠</span>
+        <h4 style="font-size:13px; margin:6px 0 4px;">1. Homepage</h4>
+        <p style="font-size:11px;">Browse featured cars, explore brands, hero CTA</p>
+      </div>
+      <div style="font-size:20px; color:var(--text-muted); align-self:center;">→</div>
+      <div class="card" style="flex:1; text-align:center; padding:16px 12px; border-top:3px solid var(--accent);">
+        <span style="font-size:28px;">🔎</span>
+        <h4 style="font-size:13px; margin:6px 0 4px;">2. Search & Filter</h4>
+        <p style="font-size:11px;">/ads — semantic search, brand / price / city filters</p>
+      </div>
+      <div style="font-size:20px; color:var(--text-muted); align-self:center;">→</div>
+      <div class="card" style="flex:1; text-align:center; padding:16px 12px; border-top:3px solid var(--success);">
+        <span style="font-size:28px;">📋</span>
+        <h4 style="font-size:13px; margin:6px 0 4px;">3. View Listing</h4>
+        <p style="font-size:11px;">/ads/[id] — full specs, photos, AI price estimate</p>
+      </div>
+    </div>
+    <div class="d-row" style="gap:8px;">
+      <div class="card" style="flex:1; text-align:center; padding:16px 12px; border-top:3px solid var(--warning);">
+        <span style="font-size:28px;">🤖</span>
+        <h4 style="font-size:13px; margin:6px 0 4px;">4. AI Chat</h4>
+        <p style="font-size:11px;">/chat — ask in Arabic or English, voice input, get personalised advice</p>
+      </div>
+      <div style="font-size:20px; color:var(--text-muted); align-self:center;">→</div>
+      <div class="card" style="flex:1; text-align:center; padding:16px 12px; border-top:3px solid #a855f7;">
+        <span style="font-size:28px;">⚖️</span>
+        <h4 style="font-size:13px; margin:6px 0 4px;">5. Compare Cars</h4>
+        <p style="font-size:11px;">/compare — AI head-to-head scoring, web research, CV photo analysis</p>
+      </div>
+      <div style="font-size:20px; color:var(--text-muted); align-self:center;">→</div>
+      <div class="card" style="flex:1; text-align:center; padding:16px 12px; border-top:3px solid var(--success); border-color:var(--success);">
+        <span style="font-size:28px;">✅</span>
+        <h4 style="font-size:13px; margin:6px 0 4px;">6. Decide</h4>
+        <p style="font-size:11px;">Informed buy / sell decision backed by AI data & market prices</p>
+      </div>
+    </div>
+  </div>
+  <div class="card" style="padding:10px 16px; display:flex; gap:12px; flex-wrap:wrap; justify-content:center; margin-top:8px;">
+    <span style="font-size:12px;">🔑 <strong>AI at every step:</strong></span>
+    <span class="tag tag-blue" style="font-size:11px;">Hybrid semantic search</span>
+    <span class="tag tag-green" style="font-size:11px;">Bilingual AI chat + voice</span>
+    <span class="tag tag-purple" style="font-size:11px;">Vision-powered comparison</span>
+    <span class="tag tag-yellow" style="font-size:11px;">Real-time market pricing</span>
+  </div>
+</div>
+
 <!-- ===== SLIDE 4: SYSTEM ARCHITECTURE ====== -->
-<div class="slide" data-index="3">
-  <h2><span class="badge">03</span> System Architecture</h2>
+<div class="slide" data-index="5">
+  <h2><span class="badge">05</span> System Architecture</h2>
   <div class="d-container">
     <div class="d-box box-gray d-box-lg" style="margin-bottom:4px;">🌐 User Browser</div>
     <div class="d-arrow"></div>
@@ -304,8 +486,8 @@
 </div>
 
 <!-- ===== SLIDE 5: SUPABASE ====== -->
-<div class="slide" data-index="4">
-  <h2><span class="badge">04</span> Supabase PostgreSQL Cloud Database</h2>
+<div class="slide" data-index="6">
+  <h2><span class="badge">06</span> Supabase PostgreSQL Cloud Database</h2>
   <p>Hosted PostgreSQL via asyncpg — 1-10 connection pools across 3 services.</p>
   <div class="grid-2" style="margin-top:16px;">
     <div>
@@ -334,42 +516,138 @@
   </div>
 </div>
 
-<!-- ===== SLIDE 6: DOCKER ====== -->
-<div class="slide" data-index="5">
-  <h2><span class="badge">05</span> Docker & Containerization</h2>
-  <p>9 services on cars_net bridge network with health checks and live code reload.</p>
-  <div class="grid-3" style="margin-top:16px;">
-    <div class="card"><span style="font-size:24px;display:block;">🧩</span><h4>backend</h4><p>FastAPI :8000</p><span class="tag tag-blue"><img src="logos/python.svg" alt="">python:3.11-slim</span></div>
-    <div class="card"><span style="font-size:24px;display:block;">🧩</span><h4>chatbot</h4><p>LangGraph :8001</p><span class="tag tag-cyan"><img src="logos/python.svg" alt="">python:3.11-slim</span></div>
-    <div class="card"><span style="font-size:24px;display:block;">🧩</span><h4>comparison</h4><p>FastAPI :8002</p><span class="tag tag-green"><img src="logos/python.svg" alt="">python:3.11-slim</span></div>
-    <div class="card"><span style="font-size:24px;display:block;">🧩</span><h4>frontend</h4><p>Next.js 16 :3000</p><span class="tag tag-yellow"><img src="logos/nextdotjs.svg" alt="">node:20-alpine</span></div>
-    <div class="card"><span style="font-size:24px;display:block;">🧩</span><h4>nginx</h4><p>Reverse proxy :80</p><span class="tag tag-red"><img src="logos/nginx.svg" alt="">nginx:alpine</span></div>
-    <div class="card"><span style="font-size:24px;display:block;">🧩</span><h4>redis</h4><p>Cache :6379</p><span class="tag tag-purple"><img src="logos/redis.svg" alt="">redis:alpine</span></div>
-    <div class="card"><span style="font-size:24px;display:block;">🧩</span><h4>prometheus</h4><p>Metrics :9090</p><span class="tag tag-blue"><img src="logos/prometheus.svg" alt="">prom/prometheus</span></div>
-    <div class="card"><span style="font-size:24px;display:block;">🧩</span><h4>grafana</h4><p>Dashboards :3001</p><span class="tag tag-orange"><img src="logos/grafana.svg" alt="">grafana/grafana</span></div>
-    <div class="card"><span style="font-size:24px;display:block;">🧩</span><h4>loki</h4><p>Logs :3100</p><span class="tag tag-green"><img src="logos/loki.svg" alt="">grafana/loki</span></div>
+<!-- ===== SLIDE 06: DOCKER ====== -->
+<div class="slide" data-index="7">
+  <h2><span class="badge">07</span> Docker — 9 Containers, One Command to Run</h2>
+  <div class="d-section" style="margin-bottom:4px;">
+    <div class="d-section-title">🌐 cars_net Bridge Network</div>
+    <div class="d-row" style="gap:6px;">
+      <div class="card" style="flex:1;padding:10px;border-left:3px solid var(--primary);">
+        <div style="font-size:11px;font-weight:600;margin-bottom:4px;">🎯 Front End</div>
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <div class="d-box box-yellow d-box-sm" style="padding:4px 8px;font-size:10px;">🖥️ frontend :3000<span class="d-sub" style="display:block;font-size:8px;">Next.js 16 · node:20-alpine</span></div>
+          <div class="d-box box-red d-box-sm" style="padding:4px 8px;font-size:10px;">🔀 nginx :80<span class="d-sub" style="display:block;font-size:8px;">Reverse proxy · nginx:alpine</span></div>
+        </div>
+      </div>
+      <div class="card" style="flex:1;padding:10px;border-left:3px solid var(--accent);">
+        <div style="font-size:11px;font-weight:600;margin-bottom:4px;">⚙️ Backend Services</div>
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <div class="d-box box-blue d-box-sm" style="padding:4px 8px;font-size:10px;">📦 backend :8000<span class="d-sub" style="display:block;font-size:8px;">FastAPI · python:3.11-slim</span></div>
+          <div class="d-box box-cyan d-box-sm" style="padding:4px 8px;font-size:10px;">🤖 chatbot :8001<span class="d-sub" style="display:block;font-size:8px;">LangGraph · python:3.11-slim</span></div>
+          <div class="d-box box-green d-box-sm" style="padding:4px 8px;font-size:10px;">⚖️ comparison :8002<span class="d-sub" style="display:block;font-size:8px;">FastAPI · python:3.11-slim</span></div>
+        </div>
+      </div>
+      <div class="card" style="flex:1;padding:10px;border-left:3px solid var(--warning);">
+        <div style="font-size:11px;font-weight:600;margin-bottom:4px;">💾 Data & Cache</div>
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <div class="d-box box-purple d-box-sm" style="padding:4px 8px;font-size:10px;">⏩ redis :6379<span class="d-sub" style="display:block;font-size:8px;">Cache · redis:alpine</span></div>
+        </div>
+      </div>
+      <div class="card" style="flex:1;padding:10px;border-left:3px solid var(--success);">
+        <div style="font-size:11px;font-weight:600;margin-bottom:4px;">📊 Monitoring</div>
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <div class="d-box box-blue d-box-sm" style="padding:4px 8px;font-size:10px;">📈 prometheus :9090<span class="d-sub" style="display:block;font-size:8px;">Metrics scrape every 15s</span></div>
+          <div class="d-box box-orange d-box-sm" style="padding:4px 8px;font-size:10px;">📉 grafana :3001<span class="d-sub" style="display:block;font-size:8px;">Pre-built dashboards</span></div>
+          <div class="d-box box-green d-box-sm" style="padding:4px 8px;font-size:10px;">📋 loki + promtail<span class="d-sub" style="display:block;font-size:8px;">Log aggregation</span></div>
+        </div>
+      </div>
+    </div>
   </div>
-  <div style="margin-top:12px;"><span class="tech-badge"><img src="logos/docker.svg" alt="">Makefile</span><span class="tech-badge">Health checks</span><span class="tech-badge">Live mounts</span><span class="tech-badge">BuildKit</span></div>
+  <div class="d-section" style="margin-bottom:4px;">
+    <div class="d-section-title">📦 docker-compose.yml — infra/docker-compose.yml</div>
+    <div class="card" style="padding:6px 10px;font-size:9px;line-height:1.5;font-family:monospace;background:#f4f6fb;">
+      <span style="color:#888;">services:</span><br>
+      &nbsp;&nbsp;backend&nbsp;&nbsp;&nbsp;:8000 &nbsp;← Backend/Dockerfile<span style="color:#aaa;"> depends_on: redis</span><br>
+      &nbsp;&nbsp;chatbot&nbsp;&nbsp;&nbsp;:8001 &nbsp;← Chatbot/Dockerfile<span style="color:#aaa;"> depends_on: backend (healthy)</span><br>
+      &nbsp;&nbsp;comparison :8002 &nbsp;← Comparison_Analysis/Dockerfile<span style="color:#aaa;"> depends_on: redis, backend</span><br>
+      &nbsp;&nbsp;frontend&nbsp;&nbsp;:3000 &nbsp;← Frontend/Dockerfile<span style="color:#aaa;"> depends_on: backend</span><br>
+      &nbsp;&nbsp;nginx&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:80 &nbsp;&nbsp;&nbsp;&nbsp;← image: nginx:alpine<span style="color:#aaa;"> depends_on: all web services</span><br>
+      &nbsp;&nbsp;redis&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:6379 &nbsp;← image: redis:alpine<br>
+      &nbsp;&nbsp;prometheus :9090 &nbsp;← image: prom/prometheus<br>
+      &nbsp;&nbsp;grafana&nbsp;&nbsp;&nbsp;&nbsp;:3001 &nbsp;← image: grafana/grafana<br>
+      &nbsp;&nbsp;loki&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:3100 &nbsp;← image: grafana/loki<br>
+      &nbsp;&nbsp;promtail&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;← image: grafana/promtail<br>
+      <span style="color:#888;">networks: cars_net</span>
+    </div>
+  </div>
+  <div class="d-section" style="margin-bottom:0;">
+    <div class="d-section-title">⚡ One Command to Run</div>
+    <div class="d-row" style="gap:6px;">
+      <div class="card" style="flex:1;padding:8px;text-align:center;">
+        <code style="font-size:11px;background:#eef2ff;padding:2px 8px;border-radius:4px;">make setup</code>
+        <p style="font-size:9px;margin-top:4px;">Create .env from template</p>
+      </div>
+      <div class="card" style="flex:1;padding:8px;text-align:center;">
+        <code style="font-size:11px;background:#eef2ff;padding:2px 8px;border-radius:4px;">make up</code>
+        <p style="font-size:9px;margin-top:4px;">docker compose up -d</p>
+      </div>
+      <div class="card" style="flex:1;padding:8px;text-align:center;">
+        <code style="font-size:11px;background:#eef2ff;padding:2px 8px;border-radius:4px;">make build</code>
+        <p style="font-size:9px;margin-top:4px;">Rebuild & start all</p>
+      </div>
+      <div class="card" style="flex:1;padding:8px;text-align:center;">
+        <code style="font-size:11px;background:#eef2ff;padding:2px 8px;border-radius:4px;">make logs svc=chatbot</code>
+        <p style="font-size:9px;margin-top:4px;">Follow service logs</p>
+      </div>
+      <div class="card" style="flex:1;padding:8px;text-align:center;">
+        <code style="font-size:11px;background:#eef2ff;padding:2px 8px;border-radius:4px;">make down</code>
+        <p style="font-size:9px;margin-top:4px;">Stop all services</p>
+      </div>
+    </div>
+  </div>
 </div>
 
-<!-- ===== SLIDE 7: NGINX ====== -->
-<div class="slide" data-index="6">
-  <h2><span class="badge">06</span> Nginx Reverse Proxy</h2>
-  <table class="spec-table" style="margin-top:16px;">
-    <tr><th>Location</th><th>Target</th><th>Timeout</th><th>Special</th></tr>
-    <tr><td>/api/v1/chat/</td><td>backend:8000</td><td>3600s</td><td>Buffering OFF, WebSocket</td></tr>
-    <tr><td>/api/v1/compare</td><td>backend:8000</td><td>600s</td><td>Buffering OFF, SSE</td></tr>
-    <tr><td>/api/</td><td>backend:8000</td><td>120s</td><td>Buffering OFF</td></tr>
-    <tr><td>/</td><td>frontend:3000</td><td>60s</td><td>WebSocket HMR</td></tr>
-  </table>
-  <div class="card" style="margin-top:16px;">
-    <p><strong>Global:</strong> auto workers, 1024 connections, gzip on, client_max_body_size 20M</p>
+<!-- ===== SLIDE 07: NGINX PROXY ====== -->
+<div class="slide" data-index="8">
+  <h2><span class="badge">08</span> Request Routing — How Nginx Directs Traffic</h2>
+  <div class="d-container" style="gap:3px;">
+    <div class="d-box box-gray d-box" style="padding:10px 16px;font-size:13px;">🌐 Incoming Request</div>
+    <div class="d-arrow" style="height:6px;"></div>
+    <div class="d-box box-primary d-box" style="padding:12px 16px;font-size:14px;font-weight:600;">Nginx Reverse Proxy<span class="d-sub">localhost:80 → routes internally</span></div>
+    <div class="d-arrow" style="height:10px;"></div>
+    <div class="d-branch" style="gap:6px;">
+      <div class="d-branch-item">
+        <div class="d-box box-blue d-box-lg" style="padding:10px 12px;">💬 <strong>/api/v1/chat/</strong><span class="d-sub">→ backend:8000 · 3600s timeout </span></div>
+        <div class="d-row" style="gap:4px;margin-top:4px;">
+          <span class="tag tag-purple" style="font-size:9px;">🔇 Buffering OFF</span>
+          <span class="tag tag-cyan" style="font-size:9px;">🔗 WebSocket support</span>
+          <span class="tag tag-green" style="font-size:9px;">⏱️ Long-lived chat</span>
+        </div>
+      </div>
+      <div class="d-branch-item">
+        <div class="d-box box-accent d-box-lg" style="padding:10px 12px;">⚖️ <strong>/api/v1/compare</strong><span class="d-sub">→ backend:8000 · 600s timeout</span></div>
+        <div class="d-row" style="gap:4px;margin-top:4px;">
+          <span class="tag tag-purple" style="font-size:9px;">🔇 Buffering OFF</span>
+          <span class="tag tag-yellow" style="font-size:9px;">📡 SSE streaming</span>
+        </div>
+      </div>
+      <div class="d-branch-item">
+        <div class="d-box box-warning d-box-lg" style="padding:10px 12px;">🔌 <strong>/api/</strong><span class="d-sub">→ backend:8000 · 120s timeout</span></div>
+        <div class="d-row" style="gap:4px;margin-top:4px;">
+          <span class="tag tag-purple" style="font-size:9px;">🔇 Buffering OFF</span>
+          <span class="tag tag-gray" style="font-size:9px;">Standard API calls</span>
+        </div>
+      </div>
+      <div class="d-branch-item">
+        <div class="d-box box-success d-box-lg" style="padding:10px 12px;">🖥️ <strong>/</strong><span class="d-sub">→ frontend:3000 · 60s timeout</span></div>
+        <div class="d-row" style="gap:4px;margin-top:4px;">
+          <span class="tag tag-cyan" style="font-size:9px;">🔗 WebSocket HMR</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:10px;padding:10px 16px;display:flex;gap:12px;flex-wrap:wrap;">
+    <span style="font-size:12px;">⚙️ <strong>Global Config:</strong></span>
+    <span class="tag tag-gray" style="font-size:10px;">auto workers</span>
+    <span class="tag tag-gray" style="font-size:10px;">1024 connections</span>
+    <span class="tag tag-gray" style="font-size:10px;">gzip on</span>
+    <span class="tag tag-gray" style="font-size:10px;">client_max_body_size 20M</span>
   </div>
 </div>
 
 <!-- ===== SLIDE 8: EMBEDDING MODEL ====== -->
-<div class="slide" data-index="7">
-  <h2><span class="badge">07</span> Embedding Model</h2>
+<div class="slide" data-index="9">
+  <h2><span class="badge">09</span> Embedding Model</h2>
   <div class="grid-2" style="margin-top:16px;">
     <div>
       <div class="card" style="border-left:3px solid var(--accent);">
@@ -389,8 +667,8 @@
 </div>
 
 <!-- ===== SLIDE 9: QDRANT ====== -->
-<div class="slide" data-index="8">
-  <h2><span class="badge">08</span> Qdrant Vector Database</h2>
+<div class="slide" data-index="10">
+  <h2><span class="badge">10</span> Qdrant Vector Database</h2>
   <div class="grid-2" style="margin-top:16px;">
     <div>
       <h3>Collection: cars_ads</h3>
@@ -423,8 +701,8 @@
 </div>
 
 <!-- ===== SLIDE 09: RAG PIPELINE ====== -->
-<div class="slide" data-index="9">
-  <h2><span class="badge">09</span> RAG Pipeline — Hybrid Search</h2>
+<div class="slide" data-index="11">
+  <h2><span class="badge">11</span> RAG Pipeline — Hybrid Search</h2>
   <div class="d-container">
     <div class="d-box box-blue d-box-lg">User Query</div>
     <div class="d-arrow"></div>
@@ -448,8 +726,8 @@
 </div>
 
 <!-- ===== SLIDE 10: WHY HYBRID SEARCH ====== -->
-<div class="slide" data-index="10">
-  <h2><span class="badge">10</span> Why Hybrid Search (BM25 + Vector)?</h2>
+<div class="slide" data-index="12">
+  <h2><span class="badge">12</span> Why Hybrid Search (BM25 + Vector)?</h2>
   <div class="d-section" style="margin-bottom:6px;">
     <div class="d-section-title">🔍 The Problem: Each approach has blind spots</div>
     <div class="d-row" style="gap:10px;">
@@ -497,8 +775,8 @@
 </div>
 
 <!-- ===== SLIDE 11: INDEXING PIPELINE ====== -->
-<div class="slide" data-index="11">
-  <h2><span class="badge">11</span> Indexing Pipeline</h2>
+<div class="slide" data-index="13">
+  <h2><span class="badge">13</span> Indexing Pipeline</h2>
   <div class="grid-2" style="margin-top:16px;">
     <div>
       <h3>Ad Create / Update</h3>
@@ -537,8 +815,8 @@
 </div>
 
 <!-- ===== SLIDE 12: DATA FLOW ====== -->
-<div class="slide" data-index="12">
-  <h2><span class="badge">12</span> System Data Flow</h2>
+<div class="slide" data-index="14">
+  <h2><span class="badge">14</span> System Data Flow</h2>
   <div class="d-container" style="gap:4px;">
     <div class="d-section" style="margin-bottom:4px;">
       <div class="d-section-title">👤 External Entities</div>
@@ -593,55 +871,159 @@
 </div>
 
 <!-- ===== SLIDE 14: MULTI-AGENT ARCHITECTURE ====== -->
-<div class="slide" data-index="13">
-  <h2><span class="badge">13</span> AI Multi-Agent Chat Assistant</h2>
-  <div class="d-container" style="gap:2px;">
-    <div class="d-section" style="margin-bottom:4px;">
-      <div class="d-section-title">🧠 How It Works — 10-Node LangGraph State Machine</div>
-      <div class="d-container">
-        <div class="d-box box-gray d-box-sm" style="padding:6px 12px;font-size:11px;max-width:200px;">💬 User sends a message</div>
-        <div class="d-arrow" style="height:8px;"></div>
-        <div class="d-box box-blue d-box-sm" style="padding:6px 12px;font-size:11px;">🔍 Preference Extractor<span class="d-sub">Extracts car preferences from natural language</span></div>
-        <div class="d-arrow" style="height:8px;"></div>
-        <div class="d-box box-accent d-box-sm" style="padding:6px 12px;font-size:11px;">🔄 Router<span class="d-sub">Classifies intent → routes to the right specialist</span></div>
-        <div class="d-join" style="height:16px;"></div>
-        <div class="d-row" style="gap:6px;">
-          <div class="d-box box-warning d-box-sm" style="padding:8px 10px;font-size:10px;flex:1;">📋 Catalogue<br><span class="d-sub">Check car availability</span></div>
-          <div class="d-box box-success d-box-sm" style="padding:8px 10px;font-size:10px;flex:1;">🔎 Search<br><span class="d-sub">Find matching cars</span></div>
-          <div class="d-box box-danger d-box-sm" style="padding:8px 10px;font-size:10px;flex:1;">💡 Recommend<br><span class="d-sub">Suggest alternatives</span></div>
-          <div class="d-box box-purple d-box-sm" style="padding:8px 10px;font-size:10px;flex:1;">🤝 Advisor<br><span class="d-sub">Evaluate & compare cars</span></div>
-          <div class="d-box box-yellow d-box-sm" style="padding:8px 10px;font-size:10px;flex:1;">💰 Seller<br><span class="d-sub">Pricing tips & analysis</span></div>
-        </div>
-        <div class="d-row" style="gap:6px;margin-top:2px;">
-          <div class="d-box box-blue d-box-sm" style="padding:8px 10px;font-size:10px;flex:1;">📖 Guide<br><span class="d-sub">How-to buying guides</span></div>
-          <div class="d-box box-gray d-box-sm" style="padding:8px 10px;font-size:10px;flex:1;">💬 General<br><span class="d-sub">General car Q&A</span></div>
-        </div>
-        <div class="d-join" style="height:14px;"></div>
-        <div class="d-box box-success d-box-lg" style="padding:8px 14px;font-size:11px;">✅ RESPONDER<span class="d-sub">Streams response via SSE: status → tokens → car results → price analysis → done</span></div>
-        <div class="d-arrow" style="height:6px;"></div>
-        <div class="d-box box-gray d-box-sm" style="padding:4px 10px;font-size:10px;">📤 Formatted response to user</div>
+<div class="slide" data-index="15">
+  <h2><span class="badge">15</span> LangGraph State Machine — How Agents Connect</h2>
+  <div class="d-section" style="margin-bottom:4px;">
+    <div class="d-section-title">⛓️ Node Graph — Directed State Machine</div>
+    <div class="d-container" style="gap:2px;">
+      <div class="d-box box-gray d-box-sm" style="padding:4px 12px;font-size:10px;max-width:160px;">▶️ START<span class="d-sub">Entry point</span></div>
+      <div class="d-arrow" style="height:6px;"></div>
+      <div class="d-box box-blue d-box-sm" style="padding:6px 12px;font-size:10px;max-width:230px;">🔍 Preference Extractor<span class="d-sub">Analyzes message → extracts car preferences</span></div>
+      <div class="d-arrow" style="height:6px;"></div>
+      <div class="d-box box-accent d-box-sm" style="padding:6px 12px;font-size:10px;max-width:200px;">🔄 Router<span class="d-sub">Classifies intent → routes conditionally</span></div>
+      <div class="d-arrow" style="height:6px;"></div>
+      <div class="d-row" style="gap:3px;">
+        <div class="d-box box-warning d-box-sm" style="padding:4px 6px;font-size:8px;flex:1;">📋 Catalogue<br><span class="d-sub" style="font-size:7px;">Check availability</span></div>
+        <div class="d-box box-success d-box-sm" style="padding:4px 6px;font-size:8px;flex:1;">🔎 Search<br><span class="d-sub" style="font-size:7px;">Find matching cars</span></div>
+        <div class="d-box box-danger d-box-sm" style="padding:4px 6px;font-size:8px;flex:1;">💡 Recommend<br><span class="d-sub" style="font-size:7px;">Suggest alternatives</span></div>
+        <div class="d-box box-purple d-box-sm" style="padding:4px 6px;font-size:8px;flex:1;">🤝 Advisor<br><span class="d-sub" style="font-size:7px;">Evaluate & compare</span></div>
+        <div class="d-box box-yellow d-box-sm" style="padding:4px 6px;font-size:8px;flex:1;">💰 Seller<br><span class="d-sub" style="font-size:7px;">Pricing analysis</span></div>
+        <div class="d-box box-cyan d-box-sm" style="padding:4px 6px;font-size:8px;flex:1;">📖 Guide<br><span class="d-sub" style="font-size:7px;">Buying guides</span></div>
+        <div class="d-box box-gray d-box-sm" style="padding:4px 6px;font-size:8px;flex:1;">💬 General<br><span class="d-sub" style="font-size:7px;">General Q&A</span></div>
+      </div>
+      <div style="font-size:8px;color:var(--text-muted);text-align:center;margin:1px 0;">🔁 Each specialist can call MCP tools → results feed back → specialist refines → passes to RESPONDER</div>
+      <div class="d-join" style="height:8px;"></div>
+      <div class="d-box box-success d-box-sm" style="padding:6px 12px;font-size:10px;max-width:230px;">✅ RESPONDER<span class="d-sub">Collects all results → formats SSE stream → response</span></div>
+      <div class="d-arrow" style="height:6px;"></div>
+      <div class="d-box box-gray d-box-sm" style="padding:4px 12px;font-size:10px;max-width:160px;">⏹️ END<span class="d-sub">Response delivered</span></div>
+    </div>
+  </div>
+  <div class="d-section" style="margin-bottom:4px;">
+    <div class="d-section-title">🧩 How LangGraph Connects Them</div>
+    <div class="d-row" style="gap:6px;">
+      <div class="card" style="flex:1;padding:8px;">
+        <h4 style="font-size:10px;">📦 State Object</h4>
+        <p style="font-size:8px;">messages[] · user_preferences · current_intent · tool_results · final_response</p>
+        <p style="font-size:8px;">Each node reads &amp; writes to shared state</p>
+      </div>
+      <div class="card" style="flex:1;padding:8px;">
+        <h4 style="font-size:10px;">🔀 Conditional Edges</h4>
+        <p style="font-size:8px;">Router inspects current_intent → picks 1 of 7 specialists</p>
+        <p style="font-size:8px;">If tool call needed → specialist loops until tool returns</p>
+      </div>
+      <div class="card" style="flex:1;padding:8px;">
+        <h4 style="font-size:10px;">🔄 Tool-Calling Loop</h4>
+        <p style="font-size:8px;">Specialist → MCP tool call → tool result → specialist processes → done → RESPONDER</p>
       </div>
     </div>
-    <div class="d-section" style="margin-bottom:0;">
-      <div class="d-section-title">🛠️ Tools Each Agent Uses</div>
-      <div class="d-row" style="gap:6px;flex-wrap:wrap;">
-        <span class="tag tag-blue" style="font-size:10px;">🔎 search_cars</span>
-        <span class="tag tag-purple" style="font-size:10px;">🔍 find_similar_cars</span>
-        <span class="tag tag-green" style="font-size:10px;">📋 check_catalogue</span>
-        <span class="tag tag-yellow" style="font-size:10px;">💰 analyze_market_price</span>
-        <span class="tag tag-cyan" style="font-size:10px;">🌐 web_search</span>
-        <span class="tag tag-red" style="font-size:10px;">🖼️ get_car_images</span>
-        <span class="tag tag-orange" style="font-size:10px;">📖 get_website_guide</span>
-        <span class="tag tag-blue" style="font-size:10px;">🏷️ expand_brand_origins</span>
-        <span class="tag tag-purple" style="font-size:10px;">🗣️ expand_colloquial_terms</span>
+  </div>
+  <div class="d-section" style="margin-bottom:0;">
+    <div class="d-section-title">🛠️ MCP Tools Available to All Specialists</div>
+    <div class="d-row" style="gap:4px;flex-wrap:wrap;">
+      <span class="tag tag-blue" style="font-size:9px;">search_cars</span>
+      <span class="tag tag-cyan" style="font-size:9px;">get_car_details</span>
+      <span class="tag tag-purple" style="font-size:9px;">find_similar_cars</span>
+      <span class="tag tag-green" style="font-size:9px;">check_catalogue</span>
+      <span class="tag tag-yellow" style="font-size:9px;">analyze_market_price</span>
+      <span class="tag tag-cyan" style="font-size:9px;">web_search</span>
+      <span class="tag tag-red" style="font-size:9px;">get_car_images</span>
+      <span class="tag tag-orange" style="font-size:9px;">get_website_guide</span>
+      <span class="tag tag-blue" style="font-size:9px;">expand_brand_origins</span>
+      <span class="tag tag-purple" style="font-size:9px;">expand_colloquial_terms</span>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SLIDE 15: MCP ARCHITECTURE ====== -->
+<div class="slide" data-index="16">
+  <h2><span class="badge">16</span> MCP Architecture — 10 Tools, 2 Servers, 1 Registry</h2>
+  <div class="d-section" style="margin-bottom:4px;">
+    <div class="d-section-title">🧩 How MCP Connects LangGraph to External Capabilities</div>
+    <div class="d-container" style="gap:2px;">
+      <div class="d-box box-blue d-box-sm" style="padding:6px 12px;font-size:10px;max-width:260px;">🤖 LangGraph Nodes<span class="d-sub">5 specialist nodes call tools via registry</span></div>
+      <div class="d-arrow" style="height:6px;"></div>
+      <div class="d-box box-accent d-box-sm" style="padding:6px 12px;font-size:10px;max-width:270px;">🔌 MCP Client — MCPToolRegistry<span class="d-sub">mcp_client.py · routes calls to the right server · 3 transports (in-process ✓)</span></div>
+      <div class="d-branch" style="gap:3px;">
+        <div class="d-branch-item">
+          <div class="d-box box-warning d-box-sm" style="padding:4px 6px;font-size:8px;">🛠️ car-search MCP Server<span class="d-sub" style="font-size:7px;">5 tools · Qdrant + PostgreSQL</span></div>
+          <div class="d-box box-success d-box-sm" style="padding:3px 5px;font-size:7px;margin-top:2px;">search_cars · get_car_details · find_similar_cars · check_catalogue · get_car_images</div>
+        </div>
+        <div class="d-branch-item">
+          <div class="d-box box-purple d-box-sm" style="padding:4px 6px;font-size:8px;">📊 analysis MCP Server<span class="d-sub" style="font-size:7px;">5 tools · Web search + market data</span></div>
+          <div class="d-box box-success d-box-sm" style="padding:3px 5px;font-size:7px;margin-top:2px;">analyze_market_price · web_search · get_website_guide · expand_brand_origins · expand_colloquial_terms</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="d-section" style="margin-bottom:4px;">
+    <div class="d-section-title">📋 Call Sequence — Agent → MCP Client → MCP Server</div>
+    <div class="card" style="padding:8px 12px;">
+      <div style="display:flex;flex-direction:column;gap:4px;font-size:9px;">
+        <div style="display:flex;gap:6px;"><span style="color:var(--text-muted);min-width:20px;">1.</span><span><strong>Agent (Search Node)</strong> calls → <code style="background:#eef2ff;padding:1px 5px;border-radius:3px;">mcp_registry.call_tool("search_cars", {brand, model, ...})</code></span></div>
+        <div style="display:flex;gap:6px;"><span style="color:var(--text-muted);min-width:20px;">2.</span><span><strong>MCP Client</strong> looks up tool in <code>_tool_map</code> → finds it belongs to <strong>"car-search"</strong> server</span></div>
+        <div style="display:flex;gap:6px;"><span style="color:var(--text-muted);min-width:20px;">3.</span><span><strong>MCP Client</strong> dispatches to in-process bridge → <code style="background:#eef2ff;padding:1px 5px;border-radius:3px;">car_search_server.call_tool(name, args)</code></span></div>
+        <div style="display:flex;gap:6px;"><span style="color:var(--text-muted);min-width:20px;">4.</span><span><strong>MCP Server</strong> runs the handler → queries <strong>Qdrant</strong> (hybrid search) + <strong>PostgreSQL</strong> (details)</span></div>
+        <div style="display:flex;gap:6px;"><span style="color:var(--text-muted);min-width:20px;">5.</span><span><strong>MCP Server</strong> returns result → <strong>MCP Client</strong> parses response → returns to <strong>Agent</strong></span></div>
+        <div style="display:flex;gap:6px;"><span style="color:var(--text-muted);min-width:20px;">6.</span><span>If MCP fails at any step → <strong>Agent falls back</strong> to direct <strong>Qdrant/PostgreSQL</strong> query</span></div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- ===== SLIDE 15: STATE + TECH STACK ====== -->
-<div class="slide" data-index="14">
-  <h2><span class="badge">14</span> How the Chatbot Processes Your Query</h2>
+<!-- ===== SLIDE 16: MCP — EVOLUTION & RATIONALE ====== -->
+<div class="slide" data-index="17">
+  <h2><span class="badge">17</span> MCP — From REST to Standardized Tools</h2>
+  <div class="d-section" style="margin-bottom:4px;">
+    <div class="d-section-title">🔄 Evolution: From REST APIs to MCP</div>
+    <div class="d-row" style="gap:6px;">
+      <div class="card" style="flex:1;padding:10px;border-left:3px solid var(--danger);">
+        <h4 style="font-size:11px;color:var(--danger);">❌ Before — REST APIs</h4>
+        <p style="font-size:9px;">Each graph node had hardcoded HTTP calls to specific backend endpoints:</p>
+        <div style="font-size:8px;background:#fef2f2;padding:6px;border-radius:4px;margin-top:4px;">
+          <code>POST /api/cars/search?brand=BMW</code><br>
+          <code>POST /api/cars/price?make=BMW&model=520i</code><br>
+          <code>POST /api/cars/compare?id1=X&id2=Y</code>
+        </div>
+        <p style="font-size:8px;color:var(--text-muted);margin-top:4px;">⚠️ Brittle — endpoint changes break all callers. No schema discovery. No fallback.</p>
+      </div>
+      <div class="d-arrow-right" style="font-size:24px;">→</div>
+      <div class="card" style="flex:1;padding:10px;border-left:3px solid var(--success);">
+        <h4 style="font-size:11px;color:var(--success);">✅ After — MCP Tools</h4>
+        <p style="font-size:9px;">Nodes call tools through a single registry — server handles routing:</p>
+        <div style="font-size:8px;background:#f0fdf4;padding:6px;border-radius:4px;margin-top:4px;">
+          <code>mcp_registry.call_tool("search_cars", {brand: "BMW"})</code><br>
+          <code>mcp_registry.call_tool("analyze_market_price", {make: "BMW", model: "520i"})</code>
+        </div>
+        <p style="font-size:8px;color:var(--text-muted);margin-top:4px;">✅ Standardized — schemas declared on the server, discovered by any caller. In-process or remote, same interface.</p>
+      </div>
+    </div>
+  </div>
+  <div class="d-section" style="margin-bottom:0;">
+    <div class="d-section-title">🤔 Why MCP Instead of Direct Function Calls?</div>
+    <div class="d-row" style="gap:6px;">
+      <div class="card" style="flex:1;padding:10px;">
+        <h4 style="font-size:11px;">🔌 Standardized Protocol</h4>
+        <p style="font-size:9px;">Tools, resources, and prompts follow the MCP spec — not custom function signatures. Any MCP-compatible client can discover and use them.</p>
+      </div>
+      <div class="card" style="flex:1;padding:10px;">
+        <h4 style="font-size:11px;">📋 Tool Discoverability</h4>
+        <p style="font-size:9px;">Each server declares metadata (name, description, input schema) so the LLM knows exactly what tools exist and how to call them — no hardcoded tool lists.</p>
+      </div>
+      <div class="card" style="flex:1;padding:10px;border-color:var(--success);">
+        <h4 style="font-size:11px;">🔁 In-Process Transport (Zero Overhead)</h4>
+        <p style="font-size:9px;">Servers run as Python modules directly inside the chatbot process — no subprocess, no network. <strong>Stdio/SSE available</strong> for future separation if needed.</p>
+      </div>
+      <div class="card" style="flex:1;padding:10px;">
+        <h4 style="font-size:11px;">⚡ Graceful Degradation</h4>
+        <p style="font-size:9px;">Every graph node tries MCP first. If it fails, it falls back to direct Qdrant/PostgreSQL queries. No single point of failure.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SLIDE 16: STATE + TECH STACK ====== -->
+<div class="slide" data-index="18">
+  <h2><span class="badge">18</span> How the Chatbot Processes Your Query</h2>
   <div class="d-section" style="margin-bottom:6px;">
     <div class="d-section-title">🔄 Example: User asks "Find me a reliable sedan under 500k EGP in Cairo"</div>
     <div class="d-container">
@@ -681,9 +1063,9 @@
   </div>
 </div>
 
-<!-- ===== SLIDE 16: LLM FALLBACK ====== -->
-<div class="slide" data-index="15">
-  <h2><span class="badge">15</span> Multi-LLM Fallback Chain</h2>
+<!-- ===== SLIDE 17: LLM FALLBACK ====== -->
+<div class="slide" data-index="19">
+  <h2><span class="badge">19</span> Multi-LLM Fallback Chain</h2>
   <table class="spec-table" style="margin-top:16px;">
     <tr><th>Provider</th><th>Model</th><th>Use</th><th>Temp</th></tr>
     <tr><td><span class="tag tag-green">Groq (Fast)</span></td><td>openai/gpt-oss-120b</td><td>Routing, extraction</td><td>0.0</td></tr>
@@ -706,7 +1088,7 @@
     <div class="card">
       <h4>MCP Tools (10)</h4>
       <div style="font-size:12px;line-height:1.7;">
-        search_cars, find_similar_cars,<br>
+        search_cars, get_car_details, find_similar_cars,<br>
         check_catalogue, analyze_market_price,<br>
         web_search, get_car_images,<br>
         get_website_guide, expand_brand_origins,<br>
@@ -716,75 +1098,111 @@
   </div>
 </div>
 
-<!-- ===== SLIDE 17: COMPARISON ENGINE ====== -->
-<div class="slide" data-index="16">
-  <h2><span class="badge">16</span> AI Car Comparison — How It Works</h2>
-  <div class="d-section" style="margin-bottom:6px;">
-    <div class="d-section-title">⚙️ Step-by-Step Process</div>
-    <div class="d-container">
-      <div class="d-row" style="gap:4px;">
-        <div class="d-box box-gray d-box-sm" style="padding:6px 10px;font-size:10px;flex:1;">1️⃣ Select 2 cars to compare</div>
-        <div style="font-size:16px;color:var(--text-muted);">→</div>
-        <div class="d-box box-blue d-box-sm" style="padding:6px 10px;font-size:10px;flex:1;">2️⃣ Load full specs from database</div>
-        <div style="font-size:16px;color:var(--text-muted);">→</div>
-        <div class="d-box box-accent d-box-sm" style="padding:6px 10px;font-size:10px;flex:1;">3️⃣ Web research (Tavily)<span class="d-sub">3 targeted queries per car</span></div>
-        <div style="font-size:16px;color:var(--text-muted);">→</div>
-        <div class="d-box box-purple d-box-sm" style="padding:6px 10px;font-size:10px;flex:1;">4️⃣ AI analyzes & scores<span class="d-sub">OpenRouter + Groq</span></div>
-        <div style="font-size:16px;color:var(--text-muted);">→</div>
-        <div class="d-box box-success d-box-sm" style="padding:6px 10px;font-size:10px;flex:1;">5️⃣ Hallucination guard check</div>
-        <div style="font-size:16px;color:var(--text-muted);">→</div>
-        <div class="d-box box-warning d-box-sm" style="padding:6px 10px;font-size:10px;flex:1;">6️⃣ Final report streamed to user</div>
+<!-- ===== SLIDE 18: COMPARISON ENGINE ====== -->
+<div class="slide" data-index="20">
+  <h2><span class="badge">20</span> AI Car Comparison — Process & Scoring</h2>
+  <div class="d-row" style="gap:8px;margin-bottom:6px;">
+    <div class="card" style="flex:1;padding:10px;">
+      <div style="font-size:11px;font-weight:600;margin-bottom:4px;">⚙️ Pipeline</div>
+      <div style="display:flex;gap:2px;font-size:9px;flex-wrap:wrap;">
+        <span class="d-box box-gray d-box-sm" style="padding:3px 6px;">Select 2 cars</span>
+        <span>→</span>
+        <span class="d-box box-blue d-box-sm" style="padding:3px 6px;">Load specs from DB</span>
+        <span>→</span>
+        <span class="d-box box-accent d-box-sm" style="padding:3px 6px;">Web research (Tavily)</span>
+        <span>→</span>
+        <span class="d-box box-purple d-box-sm" style="padding:3px 6px;">AI analyzes & scores</span>
+        <span>→</span>
+        <span class="d-box box-success d-box-sm" style="padding:3px 6px;">Hallucination guard</span>
+        <span>→</span>
+        <span class="d-box box-warning d-box-sm" style="padding:3px 6px;">Stream report to user</span>
       </div>
     </div>
   </div>
-  <div class="d-section" style="margin-bottom:6px;">
-    <div class="d-section-title">📊 How Cars Are Scored (0-10)</div>
-    <div class="d-row" style="gap:6px;">
-      <div class="card" style="flex:1;padding:10px;text-align:center;">
-        <span style="font-size:20px;">💰</span>
-        <h4 style="font-size:12px;margin-top:4px;">Value for Money</h4>
-        <p style="font-size:10px;">Price vs. market average</p>
-      </div>
-      <div class="card" style="flex:1;padding:10px;text-align:center;">
-        <span style="font-size:20px;">🔧</span>
-        <h4 style="font-size:12px;margin-top:4px;">Reliability</h4>
-        <p style="font-size:10px;">Brand & model reputation</p>
-      </div>
-      <div class="card" style="flex:1;padding:10px;text-align:center;">
-        <span style="font-size:20px;">⛽</span>
-        <h4 style="font-size:12px;margin-top:4px;">Running Cost</h4>
-        <p style="font-size:10px;">Fuel + maintenance</p>
-      </div>
-      <div class="card" style="flex:1;padding:10px;text-align:center;">
-        <span style="font-size:20px;">📈</span>
-        <h4 style="font-size:12px;margin-top:4px;">Resale Value</h4>
-        <p style="font-size:10px;">Depreciation estimate</p>
-      </div>
-      <div class="card" style="flex:1;padding:10px;text-align:center;border-color:var(--primary);">
-        <span style="font-size:20px;">🏆</span>
-        <h4 style="font-size:12px;margin-top:4px;">Overall</h4>
-        <p style="font-size:10px;">Weighted combined score</p>
-      </div>
+  <div class="d-row" style="gap:6px;margin-bottom:6px;">
+    <div class="card" style="flex:1;padding:8px;text-align:center;">
+      <span style="font-size:16px;">💰</span>
+      <h4 style="font-size:10px;margin:2px 0;">Value</h4>
+      <p style="font-size:8px;">Price vs. market</p>
+    </div>
+    <div class="card" style="flex:1;padding:8px;text-align:center;">
+      <span style="font-size:16px;">🔧</span>
+      <h4 style="font-size:10px;margin:2px 0;">Reliability</h4>
+      <p style="font-size:8px;">Brand reputation</p>
+    </div>
+    <div class="card" style="flex:1;padding:8px;text-align:center;">
+      <span style="font-size:16px;">⛽</span>
+      <h4 style="font-size:10px;margin:2px 0;">Running Cost</h4>
+      <p style="font-size:8px;">Fuel + maintenance</p>
+    </div>
+    <div class="card" style="flex:1;padding:8px;text-align:center;">
+      <span style="font-size:16px;">📈</span>
+      <h4 style="font-size:10px;margin:2px 0;">Resale Value</h4>
+      <p style="font-size:8px;">Depreciation</p>
+    </div>
+    <div class="card" style="flex:1;padding:8px;text-align:center;">
+      <span style="font-size:16px;">📷</span>
+      <h4 style="font-size:10px;margin:2px 0;">Condition</h4>
+      <p style="font-size:8px;">CV photo analysis</p>
+    </div>
+    <div class="card" style="flex:1;padding:8px;text-align:center;border-color:var(--primary);">
+      <span style="font-size:16px;">🏆</span>
+      <h4 style="font-size:10px;margin:2px 0;">Overall</h4>
+      <p style="font-size:8px;">Weighted score</p>
     </div>
   </div>
-  <div class="d-section" style="margin-bottom:0;">
-    <div class="d-section-title">🛡️ Hallucination Guard — 5 Safety Checks</div>
-    <div class="d-row" style="gap:6px;flex-wrap:wrap;">
-      <div class="d-box box-success d-box-sm" style="padding:4px 8px;font-size:10px;">✅ Claim trace-back to web sources</div>
-      <div class="d-box box-success d-box-sm" style="padding:4px 8px;font-size:10px;">✅ No accident claims without visuals</div>
-      <div class="d-box box-success d-box-sm" style="padding:4px 8px;font-size:10px;">✅ No mechanical fault diagnoses</div>
-      <div class="d-box box-success d-box-sm" style="padding:4px 8px;font-size:10px;">✅ Confidence score consistency</div>
-      <div class="d-box box-success d-box-sm" style="padding:4px 8px;font-size:10px;">✅ Winner validity verification</div>
-    </div>
-    <div class="card" style="margin-top:8px;padding:10px;text-align:center;">
-      <p style="font-size:11px;margin:0;">🔒 Every comparison passes through all 5 checks before reaching the user — if any check fails, the report is regenerated</p>
+  <div class="d-row" style="gap:6px;">
+    <div class="card" style="flex:1;padding:8px;text-align:center;">
+      <h4 style="font-size:10px;margin-bottom:4px;">🛡️ Hallucination Guard — 5 Checks</h4>
+      <div style="display:flex;gap:3px;flex-wrap:wrap;justify-content:center;">
+        <span style="font-size:8px;background:#d3f9d8;padding:2px 6px;border-radius:4px;">✅ Claim trace-back</span>
+        <span style="font-size:8px;background:#d3f9d8;padding:2px 6px;border-radius:4px;">✅ No accident claims</span>
+        <span style="font-size:8px;background:#d3f9d8;padding:2px 6px;border-radius:4px;">✅ No mechanical faults</span>
+        <span style="font-size:8px;background:#d3f9d8;padding:2px 6px;border-radius:4px;">✅ Confidence consistency</span>
+        <span style="font-size:8px;background:#d3f9d8;padding:2px 6px;border-radius:4px;">✅ Winner validity</span>
+      </div>
+      <p style="font-size:9px;margin:6px 0 0;">Flagged for regeneration or review if a check fails</p>
     </div>
   </div>
 </div>
 
-<!-- ===== SLIDE 18: PRICE ANALYSIS ====== -->
-<div class="slide" data-index="17">
-  <h2><span class="badge">17</span> AI Price Analysis — How It Works</h2>
+<!-- ===== SLIDE 19: COMPARISON PROMPT ====== -->
+<div class="slide" data-index="21">
+  <h2><span class="badge">21</span> How the Prompt Builds the Final Output</h2>
+  <div class="d-section" style="margin-bottom:4px;">
+    <div class="d-section-title">📝 Prompt Anatomy — 5 Sections Combined</div>
+    <div class="d-container" style="gap:3px;">
+      <div class="d-box box-blue d-box-sm" style="padding:6px 12px;font-size:10px;">📦 <strong>Section 1 — Ad Data</strong><span class="d-sub">Raw DB fields: make, model, year, price, mileage, engine, fuel, transmission, color, location, features</span></div>
+      <div class="d-box box-accent d-box-sm" style="padding:6px 12px;font-size:10px;">🌐 <strong>Section 2 — Web Research</strong><span class="d-sub">Tavily results: market prices, common issues, expert reviews, owner forums</span></div>
+      <div class="d-box box-cyan d-box-sm" style="padding:6px 12px;font-size:10px;">📷 <strong>Section 3 — Computer Vision</strong><span class="d-sub">AI analyzes 10+ car photos per ad: checks visible body condition, paint, interior wear, tire wear, and damage indicators via Vision LLM</span></div>
+      <div class="d-box box-purple d-box-sm" style="padding:6px 12px;font-size:10px;">📊 <strong>Section 4 — Scoring Rules</strong><span class="d-sub">Each category (0-10): Value for Money, Reliability, Running Cost, Resale Value, Condition → weighted Overall</span></div>
+      <div class="d-box box-success d-box-sm" style="padding:6px 12px;font-size:10px;">🛡️ <strong>Section 5 — Hallucination Rules</strong><span class="d-sub">Strict: trace claims to sources, no unsupported statements, confidence must match data</span></div>
+    </div>
+  </div>
+  <div class="d-section" style="margin-bottom:0;">
+    <div class="d-section-title">📋 The Prompt Template (Simplified)</div>
+    <div class="card" style="padding:10px;font-size:9px;line-height:1.6;font-family:monospace;background:#f4f6fb;">
+      <span style="color:#888;">## Ad Data (Car A)</span><br>
+      make: BMW, model: 520i, year: 2022, price: 1,450,000 EGP, mileage: 45,000 km<br>
+      <span style="color:#888;">## Ad Data (Car B)</span><br>
+      make: Mercedes, model: E200, year: 2022, price: 1,550,000 EGP, mileage: 38,000 km<br>
+      <span style="color:#888;">## Web Research Results</span><br>
+      [Tavily summaries: market prices, reliability reports, reviews...]<br>
+      <span style="color:#888;">## Computer Vision Analysis</span><br>
+      Car A photos: minor scratches on rear bumper, interior good (wear 2/10), tires 6mm tread<br>
+      Car B photos: clean body, worn driver seat (wear 5/10), tires 3mm tread, small crack on windshield<br>
+      <span style="color:#888;">## Compare the two cars above.</span> Score each (0-10) for: Value for Money, Reliability, Running Cost, Resale Value, Condition (based on CV analysis). Provide a summary table, highlight differences, declare a winner. <span style="color:#888;">Strict rules:</span> every claim must be traceable to the data, research, or photo analysis above. Do not invent facts.
+    </div>
+    <div class="card" style="margin-top:4px;padding:8px;">
+      <div style="font-size:10px;font-weight:600;margin-bottom:4px;">📤 Final Output Streamed via SSE</div>
+      <div style="font-size:9px;color:var(--text-muted);">comparison_start → tokens → car_results → price_analysis → comparison_done (or error event if guard fails)</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SLIDE 20: PRICE ANALYSIS ====== -->
+<div class="slide" data-index="22">
+  <h2><span class="badge">22</span> AI Price Analysis — How It Works</h2>
   <div class="d-section" style="margin-bottom:6px;">
     <div class="d-section-title">🔎 How We Find Market Prices</div>
     <div class="d-container">
@@ -824,37 +1242,75 @@
   </div>
 </div>
 
-<!-- ===== SLIDE 19: CACHING ====== -->
-<div class="slide" data-index="18">
-  <h2><span class="badge">18</span> Redis Caching Strategy</h2>
-  <p>Graceful degradation — if Redis unreachable, ops become no-ops.</p>
-  <div class="grid-2" style="margin-top:16px;">
-    <div>
-      <h3>Backend</h3>
-      <table class="spec-table">
-        <tr><th>Key</th><th>TTL</th><th>Data</th></tr>
-        <tr><td>cache:brand-counts</td><td>300s</td><td>Brand ad counts + logos</td></tr>
-        <tr><td>cache:site-assets</td><td>3600s</td><td>Logo + wallpaper URLs</td></tr>
-        <tr><td>cache:analytics-stats</td><td>300s</td><td>Total ads, users, sessions</td></tr>
-        <tr><td>cache:compare-ai:{id1}:{id2}</td><td>1800s</td><td>Full comparison SSE stream</td></tr>
-      </table>
+<!-- ===== SLIDE 21: CACHING ====== -->
+<div class="slide" data-index="23">
+  <h2><span class="badge">23</span> Redis Caching Strategy</h2>
+  <div class="d-section" style="margin-bottom:6px;">
+    <div class="d-section-title">🔑 Cache Keys Grouped by Purpose</div>
+    <div class="d-row" style="gap:6px;">
+      <div class="card" style="flex:1;padding:12px;border-left:3px solid var(--primary);">
+        <h4 style="font-size:12px;">📊 Backend Data</h4>
+        <div style="display:flex;flex-direction:column;gap:4px;margin-top:6px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;padding:3px 6px;background:#f4f6fb;border-radius:4px;">
+            <code style="font-size:9px;">cache:brand-counts</code><span class="tag tag-blue" style="font-size:8px;">300s</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;padding:3px 6px;background:#f4f6fb;border-radius:4px;">
+            <code style="font-size:9px;">cache:site-assets</code><span class="tag tag-green" style="font-size:8px;">3600s</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;padding:3px 6px;background:#f4f6fb;border-radius:4px;">
+            <code style="font-size:9px;">cache:analytics-stats</code><span class="tag tag-blue" style="font-size:8px;">300s</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;padding:3px 6px;background:#f4f6fb;border-radius:4px;">
+            <code style="font-size:9px;">cache:compare-ai:{id1}:{id2}</code><span class="tag tag-yellow" style="font-size:8px;">1800s</span>
+          </div>
+        </div>
+      </div>
+      <div class="card" style="flex:1;padding:12px;border-left:3px solid var(--accent);">
+        <h4 style="font-size:12px;">🤖 AI Results</h4>
+        <div style="display:flex;flex-direction:column;gap:4px;margin-top:6px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;padding:3px 6px;background:#f4f6fb;border-radius:4px;">
+            <code style="font-size:9px;">compare:{md5}:{lang}</code><span class="tag tag-green" style="font-size:8px;">3600s</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;padding:3px 6px;background:#f4f6fb;border-radius:4px;">
+            <code style="font-size:9px;">price:{make}:{model}:{year}</code><span class="tag tag-green" style="font-size:8px;">3600s</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;padding:3px 6px;background:#f4f6fb;border-radius:4px;">
+            <code style="font-size:9px;">llm_response_cache</code><span class="tag tag-blue" style="font-size:8px;">120s</span>
+          </div>
+          <div style="font-size:9px;color:var(--text-muted);margin-top:2px;padding:3px 6px;">
+            <span class="tag tag-purple" style="font-size:8px;"><img src="logos/redis.svg" alt="" style="height:10px;">embedding_cache</span> 7200s · In-memory 384-dim vectors
+          </div>
+        </div>
+      </div>
     </div>
-    <div>
-      <h3>Comparison & Chatbot</h3>
-      <table class="spec-table">
-        <tr><th>Key / Cache</th><th>TTL</th><th>Data</th></tr>
-        <tr><td>compare:{md5}:{lang}</td><td>3600s</td><td>Comparison report</td></tr>
-        <tr><td>price:{make}:{model}:{year}</td><td>3600s</td><td>Price analysis</td></tr>
-        <span class="tag tag-purple"><img src="logos/redis.svg" alt="">embedding_cache</span></td><td>7200s</td><td>384-dim vectors (in-memory)</td></tr>
-        <tr><td><span class="tag tag-purple"><img src="logos/redis.svg" alt="">llm_response_cache</span></td><td>120s</td><td>Simple LLM responses</td></tr>
-      </table>
+  </div>
+  <div class="d-section" style="margin-bottom:0;">
+    <div class="d-section-title">🛡️ Graceful Degradation</div>
+    <div class="d-row" style="gap:8px;">
+      <div class="card" style="flex:1;padding:8px;text-align:center;">
+        <span style="font-size:18px;">⏩</span>
+        <h4 style="font-size:11px;margin-top:4px;">Redis Reachable</h4>
+        <p style="font-size:9px;">Cache hit → return immediately<br>Cache miss → compute & store</p>
+      </div>
+      <div class="d-arrow-right" style="font-size:20px;">→</div>
+      <div class="card" style="flex:1;padding:8px;text-align:center;border-color:var(--warning);">
+        <span style="font-size:18px;">⚠️</span>
+        <h4 style="font-size:11px;margin-top:4px;">Redis Unreachable</h4>
+        <p style="font-size:9px;">No crash — operation becomes a no-op<br>Compute result → skip cache store</p>
+      </div>
+      <div class="d-arrow-right" style="font-size:20px;">→</div>
+      <div class="card" style="flex:1;padding:8px;text-align:center;border-color:var(--success);">
+        <span style="font-size:18px;">✅</span>
+        <h4 style="font-size:11px;margin-top:4px;">Redis Recovers</h4>
+        <p style="font-size:9px;">Automatic reconnection<br>Caches repopulate naturally</p>
+      </div>
     </div>
   </div>
 </div>
 
-<!-- ===== SLIDE 20: VOICE ASSISTANT ====== -->
-<div class="slide" data-index="19">
-  <h2><span class="badge">19</span> Voice Assistant — How It Works</h2>
+<!-- ===== SLIDE 22: VOICE ASSISTANT ====== -->
+<div class="slide" data-index="24">
+  <h2><span class="badge">24</span> Voice Assistant — How It Works</h2>
   <div class="d-section" style="margin-bottom:6px;">
     <div class="d-section-title">🎤 Complete Voice Pipeline (Arabic & English)</div>
     <div class="d-container">
@@ -897,9 +1353,9 @@
   </div>
 </div>
 
-<!-- ===== SLIDE 21: MONITORING ====== -->
-<div class="slide" data-index="20">
-  <h2><span class="badge">20</span> Monitoring & Observability</h2>
+<!-- ===== SLIDE 23: MONITORING ====== -->
+<div class="slide" data-index="25">
+  <h2><span class="badge">25</span> Monitoring & Observability</h2>
   <div class="grid-2" style="margin-top:16px;">
     <div>
       <h3>Prometheus</h3>
@@ -940,36 +1396,9 @@
   </div>
 </div>
 
-<!-- ===== SLIDE 22: RESULTS & PERFORMANCE ====== -->
-<div class="slide" data-index="21">
-  <h2><span class="badge">21</span> Results & Performance</h2>
-  <div class="grid-2" style="margin-top:16px;">
-    <div class="card" style="border-left:3px solid var(--success);">
-      <h4 style="color:var(--success);">🔎 Search Quality Pass Rate</h4>
-      <p style="font-size:24px;font-weight:700;color:var(--text);margin:8px 0;">[TODO: fill in]</p>
-      <p>Percentage of queries passing quality evaluation (top_score > 0.65 AND avg_score > 0.5) — search_quality_total metric</p>
-    </div>
-    <div class="card" style="border-left:3px solid var(--primary);">
-      <h4 style="color:var(--primary);">⚡ Average LLM Latency</h4>
-      <p style="font-size:24px;font-weight:700;color:var(--text);margin:8px 0;">p50: [TODO: fill in] / p95: [TODO: fill in]</p>
-      <p>End-to-end latency across all LLM providers — llm_latency_seconds metric</p>
-    </div>
-    <div class="card" style="border-left:3px solid var(--accent);">
-      <h4 style="color:var(--accent);">📦 Cache Hit Rate</h4>
-      <p style="font-size:24px;font-weight:700;color:var(--text);margin:8px 0;">[TODO: fill in]</p>
-      <p>Redis cache efficiency across price analysis, comparisons, and embeddings</p>
-    </div>
-    <div class="card" style="border-left:3px solid var(--warning);">
-      <h4 style="color:var(--warning);">🛡️ Hallucination Guard Pass Rate</h4>
-      <p style="font-size:24px;font-weight:700;color:var(--text);margin:8px 0;">[TODO: fill in]</p>
-      <p>Percentage of comparison results passing all 5 hallucination guard checks</p>
-    </div>
-  </div>
-</div>
-
-<!-- ===== SLIDE 23: FRONTEND ====== -->
-<div class="slide" data-index="22">
-  <h2><span class="badge">22</span> Frontend Tech Stack</h2>
+<!-- ===== SLIDE 24: FRONTEND ====== -->
+<div class="slide" data-index="26">
+  <h2><span class="badge">26</span> Frontend Tech Stack</h2>
   <div class="grid-2" style="margin-top:16px;">
     <div>
       <h3>Core Technologies</h3>
@@ -1012,9 +1441,9 @@
   </div>
 </div>
 
-<!-- ===== SLIDE 24: KEY DESIGN DECISIONS ====== -->
-<div class="slide" data-index="23">
-  <h2><span class="badge">23</span> Key Design Decisions</h2>
+<!-- ===== SLIDE 25: KEY DESIGN DECISIONS ====== -->
+<div class="slide" data-index="27">
+  <h2><span class="badge">27</span> Key Design Decisions</h2>
   <div class="grid-3" style="margin-top:16px;">
     <div class="card" style="border-left:3px solid var(--primary);">
       <h4 style="color:var(--primary);">🔎 Hybrid BM25 + Vector Search</h4>
@@ -1026,7 +1455,7 @@
       <h4 style="color:var(--success);">🧠 3-Tier LLM Fallback</h4>
       <p><strong>Decision:</strong> Groq (fast) → Groq (powerful) → OpenRouter → Groq fallback</p>
       <p><strong>Alternative considered:</strong> Single-provider (Groq only)</p>
-      <p><strong>Why this won:</strong> Groq provides low latency but limited model selection. OpenRouter adds redundancy and access to specialized models (vision, reasoning). The 3-tier chain ensures 99.9% uptime — if Groq is down, OpenRouter takes over, with a final Groq fast model as last resort.</p>
+      <p><strong>Why this won:</strong> Groq provides low latency but limited model selection. OpenRouter adds redundancy and access to specialized models (vision, reasoning). The 3-tier chain improves resilience: if one model/provider is unavailable, the app can try the next configured fallback before returning an error.</p>
     </div>
     <div class="card" style="border-left:3px solid var(--warning);">
       <h4 style="color:var(--warning);">🛡️ Hallucination Guard Layer</h4>
@@ -1037,9 +1466,9 @@
   </div>
 </div>
 
-<!-- ===== SLIDE 25: SUMMARY ====== -->
-<div class="slide" data-index="24">
-  <h2><span class="badge">24</span> Summary</h2>
+<!-- ===== SLIDE 26: SUMMARY ====== -->
+<div class="slide" data-index="28">
+  <h2><span class="badge">28</span> Summary</h2>
   <div class="grid-2" style="margin-top:16px;">
     <div>
       <h3>What We Built</h3>
@@ -1070,9 +1499,10 @@
 <div class="controls">
   <button onclick="goToSlide(0)">⏮</button>
   <button onclick="prevSlide()" id="prevBtn">◀ Prev</button>
-  <span class="page-indicator" id="pageIndicator">1 / 25</span>
+  <span class="page-indicator" id="pageIndicator">1 / 26</span>
   <button onclick="nextSlide()" id="nextBtn">Next ▶</button>
   <button onclick="goToSlide(totalSlides - 1)">⏭</button>
+  <button onclick="toggleFullscreen()" id="fullscreenBtn" title="Fullscreen (F)">⛶</button>
   <div class="progress-bar"><div class="fill" id="progressFill" style="width:0%"></div></div>
   <div class="dot-strip" id="dotStrip"></div>
 </div>
@@ -1086,6 +1516,10 @@
     if (index < 0 || index >= totalSlides) return;
     slides.forEach((s, i) => s.classList.toggle('active', i === index));
     currentSlide = index;
+    const hash = 'slide-' + (index + 1);
+    if (window.location.hash.slice(1) !== hash) {
+      history.replaceState(null, '', '#' + hash);
+    }
     document.getElementById('pageIndicator').textContent = `${index + 1} / ${totalSlides}`;
     document.getElementById('progressFill').style.width = `${((index + 1) / totalSlides) * 100}%`;
     document.getElementById('prevBtn').disabled = index === 0;
@@ -1113,7 +1547,156 @@
     strip.appendChild(dot);
   }
 
-  showSlide(0);
+  const requestedSlide = Number((window.location.hash || '').replace('#slide-', '')) - 1;
+  showSlide(Number.isInteger(requestedSlide) && requestedSlide >= 0 && requestedSlide < totalSlides ? requestedSlide : 0);
+</script>
+
+<div class="kbd-hint">← → Space 󰀃 ESC 󰀃 F</div>
+
+<script>
+// ===== PARTICLE STARFIELD =====
+(function() {
+  const canvas = document.getElementById('particleCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  let w, h, particles = [];
+
+  function resize() {
+    w = canvas.width = window.innerWidth;
+    h = canvas.height = window.innerHeight;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  const count = Math.min(120, Math.floor(w * h / 12000));
+  for (let i = 0; i < count; i++) {
+    particles.push({
+      x: Math.random() * w,
+      y: Math.random() * h,
+      r: 0.5 + Math.random() * 2,
+      dx: (Math.random() - 0.5) * 0.4,
+      dy: (Math.random() - 0.5) * 0.4,
+      o: 0.2 + Math.random() * 0.6
+    });
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, w, h);
+    for (const p of particles) {
+      p.x += p.dx; p.y += p.dy;
+      if (p.x < 0) p.x = w; if (p.x > w) p.x = 0;
+      if (p.y < 0) p.y = h; if (p.y > h) p.y = 0;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(59,91,219,${p.o * 0.4})`;
+      ctx.fill();
+    }
+    // connections
+    for (let i = 0; i < particles.length; i++) {
+      for (let j = i + 1; j < particles.length; j++) {
+        const dx = particles[i].x - particles[j].x;
+        const dy = particles[i].y - particles[j].y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 150) {
+          ctx.strokeStyle = `rgba(59,91,219,${(1 - dist / 150) * 0.1})`;
+          ctx.lineWidth = 0.5;
+          ctx.beginPath();
+          ctx.moveTo(particles[i].x, particles[i].y);
+          ctx.lineTo(particles[j].x, particles[j].y);
+          ctx.stroke();
+        }
+      }
+    }
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+// ===== CONFETTI (summary slide) =====
+(function() {
+  let confettiActive = false, confettiPieces = [];
+  const canvas = document.createElement('canvas');
+  canvas.id = 'confettiCanvas';
+  canvas.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999;';
+  document.body.appendChild(canvas);
+  const ctx = canvas.getContext('2d');
+  let w, h;
+
+  function resize() { w = canvas.width = window.innerWidth; h = canvas.height = window.innerHeight; }
+  window.addEventListener('resize', resize);
+  resize();
+
+  const colors = ['#3b5bdb','#0891b2','#16a34a','#d97706','#9333ea','#dc2626','#8098f9'];
+
+  function spawnConfetti() {
+    confettiActive = true;
+    confettiPieces = [];
+    for (let i = 0; i < 150; i++) {
+      confettiPieces.push({
+        x: w / 2 + (Math.random() - 0.5) * 200,
+        y: -20 - Math.random() * 300,
+        w: 6 + Math.random() * 6,
+        h: 4 + Math.random() * 4,
+        dx: (Math.random() - 0.5) * 6,
+        dy: 2 + Math.random() * 5,
+        r: Math.random() * Math.PI * 2,
+        dr: (Math.random() - 0.5) * 0.2,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        life: 1
+      });
+    }
+  }
+
+  function animateConfetti() {
+    if (!confettiActive) { ctx.clearRect(0,0,w,h); requestAnimationFrame(animateConfetti); return; }
+    ctx.clearRect(0, 0, w, h);
+    let alive = false;
+    for (const p of confettiPieces) {
+      p.x += p.dx; p.y += p.dy; p.dy += 0.05;
+      p.r += p.dr;
+      p.life -= 0.003;
+      if (p.life <= 0 || p.y > h + 20) continue;
+      alive = true;
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.r);
+      ctx.globalAlpha = Math.max(0, p.life);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
+      ctx.restore();
+    }
+    if (!alive) confettiActive = false;
+    requestAnimationFrame(animateConfetti);
+  }
+  animateConfetti();
+
+  // trigger when summary slide becomes active
+  const _origShow = window.showSlide;
+  window.showSlide = function(idx) {
+    if (typeof _origShow === 'function') _origShow(idx);
+    const total = document.querySelectorAll('.slide').length;
+    if (idx === total - 1) setTimeout(spawnConfetti, 600);
+  };
+  // patch goToSlide too
+  if (window.goToSlide) {
+    const _origGo = window.goToSlide;
+    window.goToSlide = function(idx) {
+      if (typeof _origGo === 'function') _origGo(idx);
+      const total = document.querySelectorAll('.slide').length;
+      if (idx === total - 1) setTimeout(spawnConfetti, 600);
+    };
+  }
+})();
+
+// ===== FULLSCREEN TOGGLE =====
+function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch(function(){});
+  } else {
+    document.exitFullscreen().catch(function(){});
+  }
+}
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'f' || e.key === 'F') toggleFullscreen();
+});
 </script>
 
 </body>
