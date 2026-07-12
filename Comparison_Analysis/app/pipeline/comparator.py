@@ -260,7 +260,7 @@ def _build_fallback_comparison(car_analyses: list[dict]) -> dict:
     }
 
 
-async def compare(car_analyses: list[dict], primary_llm, fallback_llm, language: str = "en") -> dict:
+async def compare(car_analyses: list[dict], primary_llm, fallback_llm, fallback_llm2=None, language: str = "en") -> dict:
     lang_instr = ""
     if language == "ar":
         lang_instr = "Respond in Arabic. All text fields in the JSON must be in Arabic.\n\n"
@@ -288,5 +288,13 @@ async def compare(car_analyses: list[dict], primary_llm, fallback_llm, language:
         try:
             return await _compare_with_llm(fallback_llm, COMPARE_SYSTEM, human_msg, task_type="comparison")
         except Exception as e2:
+            if fallback_llm2:
+                logger.warning("Primary Groq comparison failed (%s: %s), falling back to secondary Groq", type(e2).__name__, e2)
+                llm_fallback_total.labels(service="comparison_analysis", task_type="comparison", from_provider="groq", to_provider="groq_fallback").inc()
+                try:
+                    return await _compare_with_llm(fallback_llm2, COMPARE_SYSTEM, human_msg, task_type="comparison")
+                except Exception as e3:
+                    logger.error("Secondary Groq comparison also failed (%s: %s), using fallback comparison", type(e3).__name__, e3)
+                    return _build_fallback_comparison(car_analyses)
             logger.error("Groq comparison also failed (%s: %s), using fallback comparison", type(e2).__name__, e2)
             return _build_fallback_comparison(car_analyses)

@@ -229,7 +229,7 @@ def _clean_json(text: str) -> str:
     return text.strip()
 
 
-async def analyze_car(ad: dict, research: dict, primary_llm, fallback_llm, language: str = "en") -> dict:
+async def analyze_car(ad: dict, research: dict, primary_llm, fallback_llm, fallback_llm2=None, language: str = "en") -> dict:
     human_msg = _build_prompt(ad, research, language)
     cover_image = ad.get("cover_image_url") or None
 
@@ -239,4 +239,11 @@ async def analyze_car(ad: dict, research: dict, primary_llm, fallback_llm, langu
     except Exception as e:
         logger.warning("OpenRouter failed (%s: %s), falling back to Groq for %s %s", type(e).__name__, e, ad.get("brand"), ad.get("model"))
         llm_fallback_total.labels(service="comparison_analysis", task_type="car_analysis", from_provider="openrouter", to_provider="groq").inc()
-        return await _parse_llm_json(fallback_llm, ANALYZE_SYSTEM, human_msg, task_type="car_analysis")
+        try:
+            return await _parse_llm_json(fallback_llm, ANALYZE_SYSTEM, human_msg, task_type="car_analysis")
+        except Exception as e2:
+            if fallback_llm2:
+                logger.warning("Primary Groq failed (%s: %s), falling back to secondary Groq for %s %s", type(e2).__name__, e2, ad.get("brand"), ad.get("model"))
+                llm_fallback_total.labels(service="comparison_analysis", task_type="car_analysis", from_provider="groq", to_provider="groq_fallback").inc()
+                return await _parse_llm_json(fallback_llm2, ANALYZE_SYSTEM, human_msg, task_type="car_analysis")
+            raise

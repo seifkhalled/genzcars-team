@@ -37,7 +37,7 @@ async def compare_ads(
     async def generate():
         yield b"data: {\"type\": \"status\", \"content\": \"Connecting to analysis service...\"}\n\n"
         try:
-            async with httpx.AsyncClient(timeout=httpx.Timeout(600.0, connect=10.0)) as client:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(600.0, connect=60.0)) as client:
                 async with client.stream(
                     "POST",
                     f"{comparison_url}/compare",

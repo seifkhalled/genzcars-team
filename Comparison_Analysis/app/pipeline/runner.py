@@ -32,6 +32,7 @@ async def run(request: CompareRequest, app_state) -> AsyncGenerator[dict, None]:
     pool = app_state.pool
     openrouter_llm = app_state.llm
     groq_llm = app_state.groq_llm
+    groq_fallback_llm = getattr(app_state, "groq_fallback_llm", groq_llm)
     tavily = app_state.tavily
 
     yield {"type": "status", "content": "Loading car details..."}
@@ -69,7 +70,7 @@ async def run(request: CompareRequest, app_state) -> AsyncGenerator[dict, None]:
 
     async def _analyze_one(ad: dict, research: dict) -> dict | None:
         try:
-            return await analyze_car(ad, research, openrouter_llm, groq_llm, request.language)
+            return await analyze_car(ad, research, openrouter_llm, groq_llm, groq_fallback_llm, request.language)
         except Exception:
             return None
 
@@ -95,7 +96,7 @@ async def run(request: CompareRequest, app_state) -> AsyncGenerator[dict, None]:
 
     yield {"type": "status", "content": "Writing final verdict..."}
     try:
-        comparison_result = await compare(car_analyses, openrouter_llm, groq_llm, request.language)
+        comparison_result = await compare(car_analyses, openrouter_llm, groq_llm, groq_fallback_llm, request.language)
     except Exception:
         comparison_errors_total.labels(service="comparison_analysis", error_type="comparison_failed").inc()
         yield {"type": "error", "content": "Comparison analysis failed. Please try again."}

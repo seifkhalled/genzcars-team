@@ -8,7 +8,7 @@ import asyncpg
 from fastapi import FastAPI
 
 from app.config import settings
-from app.core.llm import get_llm
+from app.core.llm import get_llm, get_fallback_llm
 from app.core.openrouter import get_openrouter_llm
 from app.core.tavily import TavilyWrapper
 from app.core.cache import RedisClient
@@ -35,6 +35,7 @@ async def lifespan(app: FastAPI):
 
     app.state.llm = get_openrouter_llm()
     app.state.groq_llm = get_llm()
+    app.state.groq_fallback_llm = get_fallback_llm()
     app.state.tavily = TavilyWrapper(settings.tavily_api_key)
     app.state.report_cache = {}
 
