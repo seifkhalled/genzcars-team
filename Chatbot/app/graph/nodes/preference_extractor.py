@@ -227,9 +227,9 @@ async def preference_extractor_node(state: CarsChatState, config: RunnableConfig
     last_message = state["messages"][-1].content if state["messages"] else ""
     current_prefs = state.get("preferences", {})
 
-    # ── Pass 1: Need inference ───────────────────────────────────────
+    # ── Pass 1: Need inference (skip on first turn — greeting/exploration) ──
     inference_result = None
-    if llm_router:
+    if llm_router and state.get("turn_count", 0) > 0:
         inference_result = await _inference_pass(last_message, current_prefs, llm_router)
 
     # ── Build inference context for Pass 2 ────────────────────────────
@@ -323,4 +323,5 @@ async def preference_extractor_node(state: CarsChatState, config: RunnableConfig
 
     return {
         "turn_count": state.get("turn_count", 0) + 1,
+        "preferences": merged,
     }

@@ -317,20 +317,25 @@ async def search_node(state: CarsChatState, config: RunnableConfig) -> dict:
             continue
 
     # Step 4: Draft conversational response (streaming)
+    # Step 4: Draft conversational response (streaming)
     cars_summary = ""
     if ads:
         cities = set()
         body_types = set()
-        prices = []
+        prices = set()
+        brands = set()
         for a in ads:
             if a.get("city"): cities.add(a["city"])
             if a.get("body_type"): body_types.add(a["body_type"])
-            if a.get("price"): prices.append(a["price"])
+            if a.get("price"): prices.add(a["price"])
+            if a.get("brand"): brands.add(a["brand"])
         parts = [f"{len(ads)} car{'s' if len(ads) != 1 else ''} found"]
+        if brands:
+            parts.append(f"brands: {', '.join(sorted(brands))}")
         if cities:
             parts.append(f"in {', '.join(sorted(cities))}")
         if body_types:
-            parts.append(f"({', '.join(sorted(body_types))})")
+            parts.append(f"(body types: {', '.join(sorted(body_types))})")
         if prices:
             parts.append(f"priced {min(prices):,.0f} – {max(prices):,.0f} EGP")
         cars_summary = " ".join(parts)

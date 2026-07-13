@@ -9,7 +9,7 @@ interface MarketPriceCardProps {
 }
 
 export default function MarketPriceCard({ cars }: MarketPriceCardProps) {
-  const hasData = cars.some((c) => c.market_price && c.market_price.estimated_range.high > 0)
+  const hasData = cars.some((c) => c.market_price?.estimated_range?.high > 0)
   if (!hasData) return null
 
   return (
@@ -22,7 +22,7 @@ export default function MarketPriceCard({ cars }: MarketPriceCardProps) {
       <div className={`grid grid-cols-1 ${cars.length === 3 ? 'lg:grid-cols-3' : 'lg:grid-cols-2'} gap-4`}>
         {cars.map((car) => {
           const mp = car.market_price
-          const hasMp = mp && mp.estimated_range.high > 0
+          const hasMp = mp?.estimated_range?.high > 0
           const diff = hasMp ? car.price - mp!.estimated_range.average : 0
           const diffPercent = hasMp ? ((car.price / mp!.estimated_range.average - 1) * 100) : 0
           const isAbove = diff > 0

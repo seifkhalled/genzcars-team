@@ -1,9 +1,12 @@
 import json
+import logging
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 from app.enums import TaskType
 from app.graph.state import CarsChatState
 from app.data.brand_origins import format_brand_origins_prompt
+
+logger = logging.getLogger(__name__)
 
 EXTRACT_CATALOGUE_SYSTEM = """You are a catalogue checker for a car marketplace.
 Analyze the user's message and accumulated preferences to determine if they

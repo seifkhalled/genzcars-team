@@ -53,31 +53,38 @@ async def chat_message(request: ChatRequest, req: Request):
             if pool and session_token:
                 try:
                     from app.db.queries import get_chat_history, get_preferences, get_last_shown_ads
-                    db_msgs = await get_chat_history(pool, session_token)
-                    for m in db_msgs:
-                        if m["role"] == "user":
-                            messages_history.append(HumanMessage(content=m["content"]))
-                        elif m["role"] == "assistant":
-                            messages_history.append(AIMessage(content=m["content"]))
-                    prefs_row = await get_preferences(pool, session_token)
-                    if prefs_row:
-                        pref_keys = [
-                            "budget_min", "budget_max", "preferred_brands",
-                            "preferred_body_types", "preferred_fuel_types",
-                            "preferred_transmission", "preferred_cities",
-                            "max_km_driven", "year_min", "year_max",
-                            "use_case", "is_seller", "seller_car_brand",
-                            "seller_car_model", "seller_car_year",
-                            "seller_asking_price", "seller_intent",
-                            "inferred_body_types", "inferred_min_seats",
-                            "inferred_use_case",
-                            "excluded_body_types", "excluded_brands",
-                            "excluded_models",
-                        ]
-                        preferences = {k: prefs_row.get(k) for k in pref_keys if k in prefs_row}
-                        intent_history = prefs_row.get("intent_history", [])
-                        turn_count = prefs_row.get("turn_count", 0)
-                    last_shown_ads = await get_last_shown_ads(pool, session_token)
+                    # Quick existence check before full reload
+                    async with pool.acquire() as conn:
+                        has_session = await conn.fetchval(
+                            "SELECT 1 FROM chat_sessions WHERE session_token = $1::VARCHAR",
+                            session_token,
+                        )
+                    if has_session:
+                        db_msgs = await get_chat_history(pool, session_token)
+                        for m in db_msgs:
+                            if m["role"] == "user":
+                                messages_history.append(HumanMessage(content=m["content"]))
+                            elif m["role"] == "assistant":
+                                messages_history.append(AIMessage(content=m["content"]))
+                        prefs_row = await get_preferences(pool, session_token)
+                        if prefs_row:
+                            pref_keys = [
+                                "budget_min", "budget_max", "preferred_brands",
+                                "preferred_body_types", "preferred_fuel_types",
+                                "preferred_transmission", "preferred_cities",
+                                "max_km_driven", "year_min", "year_max",
+                                "use_case", "is_seller", "seller_car_brand",
+                                "seller_car_model", "seller_car_year",
+                                "seller_asking_price", "seller_intent",
+                                "inferred_body_types", "inferred_min_seats",
+                                "inferred_use_case",
+                                "excluded_body_types", "excluded_brands",
+                                "excluded_models",
+                            ]
+                            preferences = {k: prefs_row.get(k) for k in pref_keys if k in prefs_row}
+                            intent_history = prefs_row.get("intent_history", [])
+                            turn_count = prefs_row.get("turn_count", 0)
+                        last_shown_ads = await get_last_shown_ads(pool, session_token)
                 except Exception as e:
                     logger.warning("History/preference reload failed: %s: %s", type(e).__name__, str(e)[:200])
             # --- End history reload ---
@@ -132,6 +139,7 @@ async def chat_message(request: ChatRequest, req: Request):
                 try:
                     async for _ in graph.astream(input_state, config=config, stream_mode="updates"):
                         pass
+                    queue.put_nowait({"type": "done", "content": None})
                 except Exception as e:
                     logger.error("Graph stream error: %s", e, exc_info=True)
                     queue.put_nowait({"type": "error", "content": f"Graph error: {e}"})

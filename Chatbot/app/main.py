@@ -1,6 +1,7 @@
 from dotenv import load_dotenv
 load_dotenv()
 
+import asyncio
 import logging
 import time
 from contextlib import asynccontextmanager
@@ -26,12 +27,29 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+async def _warmup_embedder(embedder):
+    try:
+        embedder.encode("car")
+        logger.info("Embedding model warmed up successfully")
+    except Exception as e:
+        logger.debug("Embedding model warmup skipped: %s", e)
+
+
+async def _warmup_llm(llm):
+    try:
+        _ = llm.fast
+        _ = llm.powerful
+        logger.info("LLM clients warmed up successfully")
+    except Exception as e:
+        logger.debug("LLM client warmup skipped: %s", e)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Chatbot service starting...")
 
     dsn = settings.database_url.replace("postgresql+asyncpg://", "postgresql://")
-    pool = await asyncpg.create_pool(dsn=dsn, min_size=1, max_size=5)
+    pool = await asyncpg.create_pool(dsn=dsn, min_size=1, max_size=5, timeout=10.0)
     app.state.pool = pool
     app.state.session_start = time.time()
 
@@ -113,6 +131,8 @@ async def lifespan(app: FastAPI):
     try:
         embedder = Embedder("all-MiniLM-L6-v2")
         logger.info("all-MiniLM-L6-v2 embedding model loaded")
+        # Warmup: encode a small dummy string to download/cache the model at startup
+        asyncio.ensure_future(_warmup_embedder(embedder))
     except Exception as e:
         embedder = None
         logger.warning("Failed to load embedding model: %s", e)
@@ -126,6 +146,8 @@ async def lifespan(app: FastAPI):
     app.state.qdrant_search = qdrant_search
 
     llm = MultiLLM()
+    # Warmup: trigger LLM client construction (network handshake) at startup
+    asyncio.ensure_future(_warmup_llm(llm))
     app.state.llm_router = llm
     app.state.llm_fast = llm.fast
     app.state.llm_stream = llm.powerful or llm.fast

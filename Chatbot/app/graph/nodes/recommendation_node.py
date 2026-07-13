@@ -139,16 +139,21 @@ async def recommendation_node(state: CarsChatState, config: RunnableConfig) -> d
             continue
 
     # Generate response text
+    # Generate response text
     alternatives_summary = ""
     if ads:
         cities = set()
         body_types = set()
-        prices = []
+        prices = set()
+        brands = set()
         for a in ads:
             if a.get("city"): cities.add(a["city"])
             if a.get("body_type"): body_types.add(a["body_type"])
-            if a.get("price"): prices.append(a["price"])
+            if a.get("price"): prices.add(a["price"])
+            if a.get("brand"): brands.add(a["brand"])
         parts = [f"{len(ads)} alternative car{'s' if len(ads) != 1 else ''} found"]
+        if brands:
+            parts.append(f"brands: {', '.join(sorted(brands))}")
         if cities:
             parts.append(f"in {', '.join(sorted(cities))}")
         if body_types:

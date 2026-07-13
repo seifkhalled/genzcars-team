@@ -124,9 +124,6 @@ async def responder_node(state: CarsChatState, config: RunnableConfig) -> dict:
             insert_chat_message(pool, session_token, "assistant", node_response, node_used=intent, referenced_ad_ids=ref_ids if ref_ids else None)
         )
 
-    # 8. Emit done event (after all tokens have been sent)
-    _emit(sse_queue, {"type": "done", "content": None})
-
     # 8. Append to messages
     return {
         "messages": [AIMessage(content=node_response)],

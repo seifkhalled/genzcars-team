@@ -87,9 +87,18 @@ async def seller_node(state: CarsChatState, config: RunnableConfig) -> dict:
     last_message = state["messages"][-1].content if state.get("messages") else ""
 
     # Step 1: Extract seller car details from the message
+    seller_prefs = state.get("preferences", {})
+    seller_fields = {
+        "brand": seller_prefs.get("seller_car_brand"),
+        "model": seller_prefs.get("seller_car_model"),
+        "year": seller_prefs.get("seller_car_year"),
+        "condition": None,
+        "km_driven": None,
+        "seller_intent": seller_prefs.get("seller_intent") or "pricing",
+    }
     extract_msgs = [
         SystemMessage(content=SELLER_EXTRACT_SYSTEM.format(
-            seller_fields_json="{}",
+            seller_fields_json=json.dumps(seller_fields, ensure_ascii=False),
             message=last_message,
         )),
         HumanMessage(content=last_message),

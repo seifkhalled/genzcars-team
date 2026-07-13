@@ -2,7 +2,7 @@ import re
 
 
 def verify_results(results: list[dict]) -> list[dict]:
-    return [r for r in results if r.get("is_active", False) is True]
+    return [r for r in results if r.get("is_active", True) is True]
 
 
 def build_grounding_block(ad_payload: dict) -> str:
@@ -23,19 +23,25 @@ def build_grounding_block(ad_payload: dict) -> str:
 
 
 def validate_response(response: str, ad_payload: dict) -> str:
-    price_numbers = re.findall(r'\b\d{5,7}\b', response)
-    years = re.findall(r'\b(19[9]\d|20[0-2]\d|2030)\b', response)
-    numbers_to_check = price_numbers + years
-    for num_str in numbers_to_check:
-        num = int(num_str)
-        for field in ("price", "km_driven", "year"):
-            val = ad_payload.get(field)
-            if val is None:
-                continue
-            val = float(val)
-            if val > 0 and abs(num - val) / val > 0.05:
-                response += (
-                    "\n\n\u26a0\ufe0f Please verify all specifications directly with the seller."
-                )
+    price = ad_payload.get("price")
+    year = ad_payload.get("year")
+
+    if price is not None:
+        price = float(price)
+        if price > 0:
+            price_numbers = re.findall(r'\b\d{5,7}\b', response)
+            for num_str in price_numbers:
+                num = int(num_str)
+                if abs(num - price) / price > 0.05:
+                    response += "\n\n\u26a0\ufe0f Please verify all specifications directly with the seller."
+                    return response
+
+    if year is not None:
+        years_in_text = re.findall(r'\b(19[8-9]\d|20[0-2]\d|2030)\b', response)
+        for y_str in years_in_text:
+            y = int(y_str)
+            if y != int(year):
+                response += "\n\n\u26a0\ufe0f Please verify all specifications directly with the seller."
                 return response
+
     return response

@@ -12,6 +12,8 @@ class CarsChatState(TypedDict):
     user_id: str | None
     context_ad_id: str | None
 
+    preferences: dict
+
     retrieved_ads: list[dict]
     similar_ads: list[dict]
     price_analysis: dict | None
