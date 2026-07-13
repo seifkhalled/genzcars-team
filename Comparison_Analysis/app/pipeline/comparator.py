@@ -6,6 +6,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from app.core.ai_metrics import (
     llm_calls_total, llm_tokens_total, llm_latency_seconds, llm_cost_total,
     llm_fallback_total,
+    add_tokens,
 )
 
 logger = logging.getLogger(__name__)
@@ -15,6 +16,11 @@ COMPARISON_KEYS = {"head_to_head", "score_comparison", "key_differences", "verdi
 COMPARE_SYSTEM = """You are an expert automotive analyst for the Egyptian car market.
 You have analyzed multiple cars individually. Now compare them head-to-head
 and produce a final verdict.
+
+CRITICAL RULES:
+1. If visual inspection found damage (poor/fair condition, visual issues listed), that car MUST be penalized heavily — do NOT recommend a damaged car as the winner.
+2. Use the live market price data to assess value. A car priced significantly above market average is worse value. A car at or below market average is better value.
+3. Factor in all red_flags from the individual analyses — they are serious concerns.
 REASONING SUPPRESSION: Do NOT include any reasoning, explanation, or thinking text. Output ONLY the raw JSON object.
 Return ONLY valid JSON — no markdown, no explanation, no extra text.
 """
@@ -157,6 +163,7 @@ async def _compare_with_llm(llm, system: str, human: str, task_type: str = "comp
     llm_tokens_total.labels(service="comparison_analysis", provider=provider, type="prompt").inc(prompt_tokens)
     llm_tokens_total.labels(service="comparison_analysis", provider=provider, type="completion").inc(completion_tokens)
     llm_latency_seconds.labels(service="comparison_analysis", provider=provider, model="", task_type=task_type).observe(duration)
+    add_tokens(prompt_tokens, completion_tokens)
 
     def _ensure_dict(result):
         if isinstance(result, dict):
@@ -180,6 +187,10 @@ async def _compare_with_llm(llm, system: str, human: str, task_type: str = "comp
         HumanMessage(content=human),
     ])
     retry_content = retry_response.content.strip()
+    retry_usage = getattr(retry_response, "usage_metadata", None) or {}
+    retry_prompt = retry_usage.get("input_tokens", 0) or 0
+    retry_completion = retry_usage.get("output_tokens", 0) or 0
+    add_tokens(retry_prompt, retry_completion)
     try:
         cleaned = _clean_json(retry_content)
         result = _ensure_dict(json.loads(cleaned))
@@ -260,24 +271,41 @@ def _build_fallback_comparison(car_analyses: list[dict]) -> dict:
     }
 
 
-async def compare(car_analyses: list[dict], primary_llm, fallback_llm, fallback_llm2=None, language: str = "en") -> dict:
+async def compare(car_analyses: list[dict], primary_llm, fallback_llm, fallback_llm2=None, fallback_llm3=None, language: str = "en") -> dict:
     lang_instr = ""
     if language == "ar":
         lang_instr = "Respond in Arabic. All text fields in the JSON must be in Arabic.\n\n"
 
-    car_texts = []
-    for i, ca in enumerate(car_analyses, 1):
-        car_texts.append(
-            f"CAR {i}: {ca.get('brand', 'Unknown')} {ca.get('model', 'Unknown')} "
-            f"{ca.get('year', '')} — {ca.get('price', 0)} EGP\n"
-            f"Analysis: {json.dumps(ca, ensure_ascii=False)}"
-        )
+    try:
+        car_texts = []
+        for i, ca in enumerate(car_analyses, 1):
+            mp = ca.get("market_price", {})
+            market_info = ""
+            avg = mp.get("estimated_range", {}).get("average", 0) if mp else 0
+            if mp and mp.get("estimated_range", {}).get("high", 0) > 0 and avg > 0:
+                market_info = (
+                    f"  Market range: {mp['estimated_range']['low']:,.0f} - {mp['estimated_range']['high']:,.0f} EGP "
+                    f"(avg {avg:,.0f}, median {mp.get('median', 0):,.0f}) "
+                    f"from {mp.get('sample_count', 0)} scraped listings\n"
+                    f"  Listed price vs market avg: {'+' if ca.get('price', 0) > avg else ''}"
+                    f"{ca.get('price', 0) - avg:,.0f} EGP "
+                    f"({((ca.get('price', 0) / avg - 1) * 100):+.0f}%)\n"
+                )
+            car_texts.append(
+                f"CAR {i}: {ca.get('brand', 'Unknown')} {ca.get('model', 'Unknown')} "
+                f"{ca.get('year', '')} — {ca.get('price', 0)} EGP\n"
+                f"{market_info}"
+                f"Analysis: {json.dumps(ca, ensure_ascii=False)}"
+            )
 
-    human_msg = COMPARE_HUMAN_TEMPLATE.format(
-        n=len(car_analyses),
-        car_analyses_text="\n\n".join(car_texts),
-        language_instruction=lang_instr,
-    )
+        human_msg = COMPARE_HUMAN_TEMPLATE.format(
+            n=len(car_analyses),
+            car_analyses_text="\n\n".join(car_texts),
+            language_instruction=lang_instr,
+        )
+    except Exception as e:
+        logger.warning("Failed to build comparison prompt, using fallback: %s", e)
+        return _build_fallback_comparison(car_analyses)
 
     try:
         logger.info("Attempting OpenRouter comparison...")
@@ -294,6 +322,14 @@ async def compare(car_analyses: list[dict], primary_llm, fallback_llm, fallback_
                 try:
                     return await _compare_with_llm(fallback_llm2, COMPARE_SYSTEM, human_msg, task_type="comparison")
                 except Exception as e3:
+                    if fallback_llm3:
+                        logger.warning("Secondary Groq comparison failed (%s: %s), falling back to tertiary Groq", type(e3).__name__, e3)
+                        llm_fallback_total.labels(service="comparison_analysis", task_type="comparison", from_provider="groq_fallback", to_provider="groq_fallback2").inc()
+                        try:
+                            return await _compare_with_llm(fallback_llm3, COMPARE_SYSTEM, human_msg, task_type="comparison")
+                        except Exception as e4:
+                            logger.error("All Groq comparisons failed, using fallback comparison")
+                            return _build_fallback_comparison(car_analyses)
                     logger.error("Secondary Groq comparison also failed (%s: %s), using fallback comparison", type(e3).__name__, e3)
                     return _build_fallback_comparison(car_analyses)
             logger.error("Groq comparison also failed (%s: %s), using fallback comparison", type(e2).__name__, e2)

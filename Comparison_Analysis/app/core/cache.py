@@ -45,3 +45,11 @@ class RedisClient:
 
     async def set_json(self, key: str, value: Any, ttl: int = 300):
         await self.set(key, json.dumps(value, ensure_ascii=False, default=str), ttl=ttl)
+
+    async def delete_pattern(self, pattern: str):
+        if not self._client:
+            return
+        keys = await self._client.keys(pattern)
+        if keys:
+            await self._client.delete(*keys)
+            logger.info("Deleted %d Redis keys matching %s", len(keys), pattern)

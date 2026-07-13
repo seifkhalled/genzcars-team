@@ -35,6 +35,32 @@ export default function HeadToHeadTable({ cars }: HeadToHeadTableProps) {
       lowerIsBetter: true,
     },
     {
+      labelKey: 'marketAvg',
+      getValue: (c) => c.market_price?.estimated_range?.average ?? 0,
+      compare: (values) => {
+        const nums = values.map((v) => (typeof v === 'number' ? v : 0))
+        const best = Math.min(...nums)
+        return nums.map((n) => (n === best ? 1 : 0))
+      },
+      isNumeric: true,
+      lowerIsBetter: true,
+    },
+    {
+      labelKey: 'vsMarket',
+      getValue: (c) => {
+        const avg = c.market_price?.estimated_range?.average
+        if (!avg || avg === 0) return 'N/A'
+        const diff = ((c.price / avg - 1) * 100)
+        return `${diff > 0 ? '+' : ''}${diff.toFixed(0)}%`
+      },
+      compare: (values) => {
+        const strs = values.map(String)
+        const nums = strs.map((s) => s === 'N/A' ? Infinity : parseFloat(s))
+        const best = Math.min(...nums)
+        return nums.map((n) => (n === best && n !== Infinity ? 1 : 0))
+      },
+    },
+    {
       labelKey: 'year',
       getValue: (c) => c.year,
       compare: (values) => {

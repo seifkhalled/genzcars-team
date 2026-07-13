@@ -107,12 +107,55 @@ async def analyze_car_images(
         }
 
 
-async def _call_vision_llm(ad: dict, image_urls: List[str]) -> dict:
+async def _call_single_vision_model(ad: dict, model: str, content_parts: list) -> dict:
     client = AsyncOpenAI(
         base_url=OPENROUTER_BASE_URL,
         api_key=settings.openrouter_api_key,
     )
 
+    start = time.monotonic()
+    response = await client.chat.completions.create(
+        model=model,
+        messages=[
+            {"role": "system", "content": VISION_SYSTEM_PROMPT},
+            {"role": "user", "content": content_parts},
+        ],
+        temperature=0.1,
+        max_tokens=2048,
+        extra_headers={
+            "HTTP-Referer": "https://dealsegypt.com",
+            "X-Title": "Deals Egypt",
+        },
+        extra_body={"reasoning": {"budget_tokens": 2048}},
+    )
+    duration = time.monotonic() - start
+
+    usage = response.usage or {}
+    prompt_tokens = usage.get("prompt_tokens", 0) or 0
+    completion_tokens = usage.get("completion_tokens", 0) or 0
+    model_used = response.model or model
+
+    llm_calls_total.labels(service="backend", provider="openrouter", model=model_used, task_type="vision_analysis").inc()
+    llm_tokens_total.labels(service="backend", provider="openrouter", type="prompt").inc(prompt_tokens)
+    llm_tokens_total.labels(service="backend", provider="openrouter", type="completion").inc(completion_tokens)
+    llm_latency_seconds.labels(service="backend", provider="openrouter", model=model_used, task_type="vision_analysis").observe(duration)
+
+    content = response.choices[0].message.content.strip()
+    cleaned = content.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+
+    import json
+    result = json.loads(cleaned)
+    result["confidence"] = _compute_vision_confidence(result)
+    logger.info(
+        "Vision analysis complete for %s %s via %s (condition=%s, confidence=%.2f)",
+        ad.get("brand"), ad.get("model"), model_used,
+        result.get("overall_condition", "unknown"),
+        result["confidence"],
+    )
+    return result
+
+
+async def _call_vision_llm(ad: dict, image_urls: List[str]) -> dict:
     content_parts = [
         {
             "type": "text",
@@ -131,65 +174,38 @@ async def _call_vision_llm(ad: dict, image_urls: List[str]) -> dict:
     for url in image_urls[:5]:
         content_parts.append({
             "type": "image_url",
-            "image_url": {"url": url, "detail": "low"},
+            "image_url": {"url": url, "detail": "high"},
         })
 
-    start = time.monotonic()
-    response = await client.chat.completions.create(
-        model=settings.openrouter_vision_model,
-        messages=[
-            {"role": "system", "content": VISION_SYSTEM_PROMPT},
-            {"role": "user", "content": content_parts},
-        ],
-        temperature=0.1,
-        max_tokens=1024,
-        extra_headers={
-            "HTTP-Referer": "https://dealsegypt.com",
-            "X-Title": "Deals Egypt",
-        },
-    )
-    duration = time.monotonic() - start
-
-    usage = response.usage or {}
-    prompt_tokens = usage.get("prompt_tokens", 0) or 0
-    completion_tokens = usage.get("completion_tokens", 0) or 0
-    model_used = response.model or settings.openrouter_vision_model
-
-    llm_calls_total.labels(service="backend", provider="openrouter", model=model_used, task_type="vision_analysis").inc()
-    llm_tokens_total.labels(service="backend", provider="openrouter", type="prompt").inc(prompt_tokens)
-    llm_tokens_total.labels(service="backend", provider="openrouter", type="completion").inc(completion_tokens)
-    llm_latency_seconds.labels(service="backend", provider="openrouter", model=model_used, task_type="vision_analysis").observe(duration)
-
-    content = response.choices[0].message.content.strip()
-    cleaned = content.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+    models_to_try = [
+        (settings.openrouter_vision_model, "primary"),
+    ]
+    if settings.openrouter_vision_model_fallback:
+        models_to_try.append((settings.openrouter_vision_model_fallback, "fallback"))
 
     import json
-    try:
-        result = json.loads(cleaned)
 
-        confidence_score = _compute_vision_confidence(result)
+    for model, label in models_to_try:
+        try:
+            return await _call_single_vision_model(ad, model, content_parts)
+        except json.JSONDecodeError:
+            logger.warning("%s model %s returned invalid JSON", label, model)
+            continue
+        except Exception as e:
+            logger.warning("%s model %s failed (%s: %s)", label, model, type(e).__name__, e)
+            continue
 
-        result["confidence"] = confidence_score
-        logger.info(
-            "Vision analysis complete for %s %s (condition=%s, confidence=%.2f)",
-            ad.get("brand"), ad.get("model"),
-            result.get("overall_condition", "unknown"),
-            confidence_score,
-        )
-        return result
-
-    except json.JSONDecodeError:
-        logger.warning("Vision LLM returned invalid JSON, falling back to default")
-        return {
-            "findings": [],
-            "overall_condition": "unknown",
-            "cosmetic_issues": [],
-            "accident_indicators": "unknown",
-            "accident_indicators_reason": "Vision analysis failed to parse",
-            "image_quality": "poor",
-            "summary": "Unable to parse vision analysis results",
-            "confidence": 0.0,
-        }
+    logger.error("All vision models failed for %s %s", ad.get("brand"), ad.get("model"))
+    return {
+        "findings": [],
+        "overall_condition": "unknown",
+        "cosmetic_issues": [],
+        "accident_indicators": "unknown",
+        "accident_indicators_reason": "All vision models failed",
+        "image_quality": "poor",
+        "summary": "Vision analysis unavailable",
+        "confidence": 0.0,
+    }
 
 
 def _compute_vision_confidence(result: dict) -> float:

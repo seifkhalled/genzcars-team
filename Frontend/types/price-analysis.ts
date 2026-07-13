@@ -13,8 +13,10 @@ export interface PriceAnalysisReport {
     high: number
     average: number
   }
-  confidence: 'high' | 'medium' | 'low'
+  median?: number
+  confidence: 'high' | 'medium' | 'low' | 'none'
   summary: string
   currency: string
-  sources: { title: string; url: string }[]
+  sample_count?: number
+  sources: { title: string; url: string; source?: string }[]
 }

@@ -20,7 +20,7 @@ class PriceAnalysisRequest(BaseModel):
 async def price_analysis(body: PriceAnalysisRequest):
     comparison_url = settings.comparison_service_url
     try:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=10.0)) as client:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(120.0, connect=15.0)) as client:
             resp = await client.post(
                 f"{comparison_url}/price-analysis",
                 json={"make": body.make, "model": body.model, "year": body.year},

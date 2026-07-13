@@ -12,6 +12,7 @@ import VerdictCard from '@/components/compare/VerdictCard'
 import ScoreRadar from '@/components/compare/ScoreRadar'
 import ScoreBar from '@/components/compare/ScoreBar'
 import HeadToHeadTable from '@/components/compare/HeadToHeadTable'
+import MarketPriceCard from '@/components/compare/MarketPriceCard'
 import AIComparisonLoading from '@/components/compare/AIComparisonLoading/AIComparisonLoading'
 import { formatPrice } from '@/lib/utils'
 import type { CarAnalysis } from '@/types/compare'
@@ -118,6 +119,8 @@ export default function CompareContent() {
             </div>
             <HeadToHeadTable cars={report.cars} />
           </section>
+
+          <MarketPriceCard cars={report.cars} />
 
           <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {report.cars.map((car) => (

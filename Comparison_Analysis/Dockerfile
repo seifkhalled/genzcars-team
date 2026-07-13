@@ -11,6 +11,8 @@ COPY requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -r requirements.txt
 
+RUN python -m playwright install --with-deps chromium
+
 COPY . .
 
 EXPOSE 8002

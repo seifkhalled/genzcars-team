@@ -22,6 +22,13 @@ export interface CarAnalysis {
   red_flags: string[]
   spare_parts_availability: string
   service_centers_egypt: string
+  market_price: {
+    estimated_range: { low: number; high: number; average: number }
+    median: number
+    confidence: string
+    sample_count: number
+    summary?: string
+  } | null
 }
 
 export interface ScoreComparison {

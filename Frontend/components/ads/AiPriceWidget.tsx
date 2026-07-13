@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Sparkles, TrendingUp, TrendingDown, Minus, Loader2, AlertCircle, ExternalLink, Search } from 'lucide-react'
+import { Sparkles, TrendingUp, TrendingDown, Minus, Loader2, AlertCircle, ExternalLink, Search, BarChart3, MapPin } from 'lucide-react'
 import { formatPrice } from '@/lib/utils'
 import { usePriceAnalysis } from '@/hooks/usePriceAnalysis'
 
@@ -26,11 +26,14 @@ export function AiPriceWidget({ price, brand, model, year }: AiPriceWidgetProps)
 
   const trend = hasRealData
     ? price > report.estimated_range.high
-      ? { icon: TrendingUp, color: 'text-danger', bg: 'bg-danger/10', label: 'Above market' }
+      ? { icon: TrendingUp, color: 'text-danger', bg: 'bg-danger/10', label: 'Above market', description: `Listed ${((price / report.estimated_range.average - 1) * 100).toFixed(0)}% above average` }
       : price < report.estimated_range.low
-        ? { icon: TrendingDown, color: 'text-success', bg: 'bg-success/10', label: 'Below market' }
-        : { icon: Minus, color: 'text-warning', bg: 'bg-warning/10', label: 'Fair price' }
+        ? { icon: TrendingDown, color: 'text-success', bg: 'bg-success/10', label: 'Below market', description: `Listed ${((1 - price / report.estimated_range.average) * 100).toFixed(0)}% below average` }
+        : { icon: Minus, color: 'text-warning', bg: 'bg-warning/10', label: 'Fair price', description: 'Within market range' }
     : null
+
+  const priceDiff = hasRealData ? price - report.estimated_range.average : 0
+  const priceDiffPercent = hasRealData ? ((price / report.estimated_range.average - 1) * 100).toFixed(0) : '0'
 
   return (
     <div className="bg-gradient-to-br from-primary-50 to-primary-100/50 rounded-xl border border-primary-200 overflow-hidden">
@@ -44,7 +47,7 @@ export function AiPriceWidget({ price, brand, model, year }: AiPriceWidgetProps)
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-primary-700">AI Price Analysis</p>
           <p className="text-xs text-primary-500/70 mt-0.5">
-            {isLoading ? 'Analyzing market...' : report ? (hasRealData ? 'Market data available' : 'Search completed') : 'Click to analyze market price'}
+            {isLoading ? 'Analyzing market prices...' : report ? (hasRealData ? 'Market data available' : 'Search completed') : 'Click to analyze market price'}
           </p>
         </div>
         {!isLoading && trend && (
@@ -56,11 +59,11 @@ export function AiPriceWidget({ price, brand, model, year }: AiPriceWidgetProps)
       </button>
 
       {expanded && (
-        <div className="px-4 pb-4 space-y-2 border-t border-primary-200">
+        <div className="px-4 pb-4 space-y-3 border-t border-primary-200">
           {isLoading ? (
             <div className="pt-3 flex items-center gap-2 text-sm text-text-secondary">
               <Loader2 className="w-4 h-4 animate-spin" />
-              Searching market prices across OLX, Contact Cars & more...
+              Searching market prices across Hatla2ee, ContactCars, Dubizzle & more...
             </div>
           ) : error ? (
             <div className="pt-3 space-y-1.5 text-sm">
@@ -70,22 +73,49 @@ export function AiPriceWidget({ price, brand, model, year }: AiPriceWidgetProps)
               </div>
             </div>
           ) : report ? (
-            <div className="pt-3 space-y-1.5 text-sm">
-              <div className="flex justify-between">
+            <div className="pt-3 space-y-3 text-sm">
+              <div className="flex justify-between items-center">
                 <span className="text-text-secondary">Listed Price</span>
-                <span className="font-medium text-text-primary">{formatPrice(price)} EGP</span>
+                <span className="font-medium text-text-primary text-base">{formatPrice(price)} EGP</span>
               </div>
 
               {hasRealData ? (
                 <>
-                  <div className="flex justify-between">
+                  <div className="flex justify-between items-center">
                     <span className="text-text-secondary">Market Range</span>
                     <span className="font-medium text-text-primary">{formatPrice(report.estimated_range.low)} — {formatPrice(report.estimated_range.high)} EGP</span>
                   </div>
-                  <div className="flex justify-between">
+
+                  <div className="flex justify-between items-center">
                     <span className="text-text-secondary">Market Average</span>
                     <span className="font-medium text-text-primary">{formatPrice(report.estimated_range.average)} EGP</span>
                   </div>
+
+                  {report.median && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-text-secondary">Median Price</span>
+                      <span className="font-medium text-text-primary">{formatPrice(report.median)} EGP</span>
+                    </div>
+                  )}
+
+                  {priceDiff !== 0 && (
+                    <div className={`flex justify-between items-center px-2 py-1 rounded-lg ${priceDiff > 0 ? 'bg-danger/5' : 'bg-success/5'}`}>
+                      <span className="text-text-secondary text-xs">vs. Average</span>
+                      <span className={`font-medium text-xs ${priceDiff > 0 ? 'text-danger' : 'text-success'}`}>
+                        {priceDiff > 0 ? '+' : ''}{formatPrice(Math.round(priceDiff))} EGP ({priceDiffPercent}%)
+                      </span>
+                    </div>
+                  )}
+
+                  {report.sample_count && report.sample_count > 0 && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-text-secondary flex items-center gap-1">
+                        <BarChart3 className="w-3 h-3" />
+                        Data Points
+                      </span>
+                      <span className="font-medium text-text-primary">{report.sample_count} listings</span>
+                    </div>
+                  )}
                 </>
               ) : (
                 <div className="flex items-center gap-2 text-text-muted py-1">
@@ -94,7 +124,7 @@ export function AiPriceWidget({ price, brand, model, year }: AiPriceWidgetProps)
                 </div>
               )}
 
-              <div className="flex justify-between">
+              <div className="flex justify-between items-center">
                 <span className="text-text-secondary">AI Confidence</span>
                 <span className={`font-medium capitalize ${report.confidence === 'high' ? 'text-success' : report.confidence === 'medium' ? 'text-warning' : 'text-text-muted'}`}>
                   {report.confidence}
@@ -108,28 +138,20 @@ export function AiPriceWidget({ price, brand, model, year }: AiPriceWidgetProps)
               )}
 
               {report.sources.length > 0 && (
-                <div className="pt-1">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      const el = e.currentTarget.nextElementSibling as HTMLElement
-                      if (el) el.classList.toggle('hidden')
-                    }}
-                    className="text-xs text-primary-500 hover:text-primary-600 flex items-center gap-1"
-                  >
-                    <ExternalLink className="w-3 h-3" />
-                    View sources ({report.sources.length})
-                  </button>
-                  <div className="hidden pt-1 space-y-0.5">
-                    {report.sources.slice(0, 5).map((s, i) => (
+                <div className="pt-1 border-t border-primary-200">
+                  <p className="text-xs font-medium text-text-secondary mb-1">Market Sources</p>
+                  <div className="space-y-0.5 max-h-32 overflow-y-auto">
+                    {report.sources.filter(s => !!s.url).slice(0, 8).map((s, i) => (
                       <a
                         key={i}
                         href={s.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="block text-xs text-text-muted hover:text-primary-500 truncate"
+                        className="flex items-center gap-1.5 text-xs text-text-muted hover:text-primary-500 truncate group"
                       >
-                        {s.title}
+                        <MapPin className="w-3 h-3 flex-shrink-0 opacity-50 group-hover:opacity-100" />
+                        <span className="truncate">{s.title || s.url}<span className="text-text-muted/60"> · {s.source}</span></span>
+                        <ExternalLink className="w-3 h-3 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
                       </a>
                     ))}
                   </div>

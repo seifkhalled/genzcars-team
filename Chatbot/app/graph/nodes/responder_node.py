@@ -1,8 +1,24 @@
 import asyncio
+import re
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
 from app.graph.state import CarsChatState
 from app.data.constants import NODE_STATUS_MAP, RESPONDER_TOKEN_DELAY_SECONDS
+
+_AD_ENUM_PATTERN = re.compile(
+    r'(?:^|\n)\s*(?:\d+[\.\)]\s+|(?:ad|option|alternative|choice)\s+#?\d+\s*[:\.\)\-]+\s*)',
+    re.IGNORECASE,
+)
+
+
+def _strip_ad_enumerations(text: str) -> str:
+    lines = text.split("\n")
+    cleaned = []
+    for line in lines:
+        if _AD_ENUM_PATTERN.match(line):
+            continue
+        cleaned.append(line)
+    return "\n".join(cleaned).strip()
 
 
 def _clean_node_response(text: str) -> str:
@@ -30,7 +46,7 @@ async def responder_node(state: CarsChatState, config: RunnableConfig) -> dict:
     pool = config["configurable"].get("db_pool")
     sse_queue = config["configurable"].get("sse_queue")
     session_token = state.get("session_token", "")
-    node_response = _clean_node_response(state.get("node_response", ""))
+    node_response = _strip_ad_enumerations(_clean_node_response(state.get("node_response", "")))
     retrieved = state.get("retrieved_ads", [])
     intent = state.get("intent", "")
 

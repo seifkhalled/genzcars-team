@@ -26,29 +26,30 @@ STRICT RULE — JSON field conventions:
    - luxury, premium, فاخر, بريميوم → luxury
    - off-road, 4x4, adventure, دفع رباعي, مغامرة → offroad
 
-2. Map inferred needs to matching body types:
-   - family / travel → ["suv", "mpv", "minivan", "station_wagon"]
-   - large_vehicle → ["suv", "pickup", "van"]
-   - offroad → ["suv", "pickup"]
-   - budget → ["hatchback", "sedan"]
-   - luxury → ["sedan", "coupe", "convertible"]
+2. Based on the FULL context of the user's message (not just one keyword),
+   suggest body types that make sense. Consider ALL constraints together:
+   - A "luxury family car" might be a luxury SUV, not just a sedan
+   - A "budget family car" might be a hatchback or small sedan
+   - An "off-road luxury car" might be a luxury SUV
+   - Don't assume — if the context is ambiguous, suggest multiple options
+   - Only include body types that actually exist in the Egyptian market
 
 3. Extract explicit rejections ("not X", "I don't want X", "مش عايز"):
    - body types, brands, models
 
 Return ONLY JSON — no explanation, no markdown:
-{{
+{
   "has_preference_content": true/false,
   "inferred_use_case": "family" | "travel" | "large_vehicle" | "budget" | "luxury" | "offroad" | null,
   "inferred_from_text": ["family", "travel"],
   "inferred_body_types": ["suv", "mpv"],
   "inferred_min_seats": null,
-  "explicit_rejections": {{
+  "explicit_rejections": {
     "body_types": ["sedan"],
     "brands": [],
     "models": []
-  }}
-}}
+  }
+}
 
 User message: "{message}"
 Existing preferences: {preferences_json}"""

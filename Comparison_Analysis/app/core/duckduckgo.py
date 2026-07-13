@@ -29,13 +29,17 @@ class DuckDuckGoSearch:
 
     async def search_prices(self, make: str, model: str, year: int) -> list[dict]:
         queries = [
-            f"{make} {model} {year} price Egypt EGP",
-            f"{make} {model} {year} سعر مصر",
-            f"{make} {model} {year} للبيع مصر سعر",
-            f"site:olx.com.eg {make} {model} {year}",
-            f"site:contactcars.com {make} {model} {year}",
-            f"{make} {model} {year} market value Egypt used car price",
-            f"{make} {model} {year} price in Egypt otlob hatla2nee contact",
+            f'"{make}" "{model}" "{year}" price EGP Egypt',
+            f'{make} {model} {year} سعر مصر جنيه',
+            f'"{make} {model} {year}" سيارة للبيع مصر',
+            f'site:olx.com.eg "{make}" "{model}" "{year}"',
+            f'site:contactcars.com "{make}" "{model}" "{year}"',
+            f'site:hatla2ee.com "{make}" "{model}" "{year}"',
+            f'site:dubizzle.com.eg "{make}" "{model}" "{year}"',
+            f'site:sayaraa.com "{make}" "{model}" "{year}"',
+            f'{make} {model} {year} official price Egypt EGP',
+            f'{make} {model} {year} average market price Egypt',
+            f'site:hatla2ee.com "{make}" "{model}" new price',
         ]
 
         loop = asyncio.get_running_loop()
@@ -46,3 +50,47 @@ class DuckDuckGoSearch:
 
         results = await asyncio.gather(*[_run(q) for q in queries])
         return results
+
+    async def research_car(self, ad: dict) -> dict:
+        brand = ad.get("brand", "")
+        model = ad.get("model", "")
+        year = ad.get("year", "")
+
+        reliability_queries = [
+            f"{brand} {model} {year} reliability common problems Egypt",
+            f"{brand} {model} {year} مشاكل شائعة مصر",
+            f"{brand} {model} {year} أعطال مصر",
+        ]
+        price_queries = [
+            f"site:olx.com.eg {brand} {model} {year}",
+            f"site:contactcars.com {brand} {model} {year}",
+            f"site:hatla2ee.com {brand} {model}",
+            f"site:dubizzle.com.eg {brand} {model} {year}",
+            f"site:sayaraa.com {brand} {model} {year}",
+            f"{brand} {model} {year} سعر مستعمل مصر",
+        ]
+        reputation_queries = [
+            f"{brand} {model} owner review Egypt",
+            f"{brand} {model} تجربة مالك مصر",
+            f"{brand} {model} مراجعة مصر",
+        ]
+
+        loop = asyncio.get_running_loop()
+
+        async def _search_all(queries: list[str], max_per_query: int = 5) -> str:
+            async def _run(q: str) -> str:
+                return await loop.run_in_executor(None, self.search, q, max_per_query)
+            results = await asyncio.gather(*[_run(q) for q in queries])
+            return "\n".join(r for r in results if r)
+
+        snippets = await asyncio.gather(
+            _search_all(reliability_queries),
+            _search_all(price_queries),
+            _search_all(reputation_queries),
+        )
+
+        return {
+            "reliability_snippets": snippets[0],
+            "price_snippets": snippets[1],
+            "reputation_snippets": snippets[2],
+        }

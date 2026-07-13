@@ -22,7 +22,7 @@ class TavilyWrapper:
 
     async def research_car(self, ad: dict) -> dict:
         reliability_q = f"{ad['brand']} {ad['model']} {ad['year']} reliability common problems Egypt"
-        price_q = f"{ad['brand']} {ad['model']} {ad['year']} price Egypt market 2024 2025"
+        price_q = f"{ad['brand']} {ad['model']} {ad['year']} price Egypt market EGP used"
         reputation_q = f"{ad['brand']} {ad['model']} owner review Egypt مصر"
 
         try:

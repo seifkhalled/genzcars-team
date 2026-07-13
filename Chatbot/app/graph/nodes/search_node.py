@@ -61,12 +61,17 @@ Conversation history:
 {conversation_history}"""
 
 RESPONSE_SYSTEM = """You are a helpful car marketplace assistant.
-You have just searched the listings and found the following cars that match
-the user's request. Write a natural, friendly 2-3 sentence response
-introducing the results. Mention key matching points (city, price range,
-body type, etc.) that make these results relevant.
-Do NOT list the cars — they will be shown as visual cards below your message.
-Always respond in the same language the user wrote in (Arabic or English).
+You have just searched the listings and found cars matching the user's request.
+Write a natural, friendly 1-2 sentence response.
+
+CRITICAL RULES:
+1. NEVER list, enumerate, or describe individual cars by number, bullet,
+   or any other format. The visual cards below your message will show each car.
+2. ONLY describe the results in aggregate using the summary below.
+3. Use EXACTLY the numbers from the summary — do not change counts, prices,
+   or locations. If the summary says "2 cars", say "2 cars", not "1 car".
+4. If the summary shows mixed body types, mention that. Do NOT pick one
+   body type and ignore the others.
 
 Found cars summary:
 {cars_summary}
@@ -152,6 +157,36 @@ async def search_node(state: CarsChatState, config: RunnableConfig) -> dict:
     excluded_body_types = filters.get("excluded_body_types")
     excluded_brands = filters.get("excluded_brands")
     excluded_models = filters.get("excluded_models")
+
+    # Step 2.1: Merge accumulated preferences as fallback filters
+    prefs = state.get("preferences", {})
+    prefs_to_filters = {
+        "preferred_brands": "brand",
+        "preferred_body_types": "body_types",
+        "budget_min": "price_min",
+        "budget_max": "price_max",
+        "preferred_fuel_types": "fuel_type",
+        "preferred_transmission": "transmission",
+        "preferred_cities": "city",
+    }
+    prefs_to_list_filters = {
+        "inferred_body_types": "body_types",
+    }
+    for pref_key, filter_key in prefs_to_filters.items():
+        pref_val = prefs.get(pref_key)
+        if pref_val and not filters.get(filter_key):
+            filters[filter_key] = pref_val
+    for pref_key, filter_key in prefs_to_list_filters.items():
+        pref_val = prefs.get(pref_key)
+        if pref_val and not filters.get(filter_key):
+            filters[filter_key] = pref_val
+
+    # Re-sync after merge
+    brand_filter = filters.get("brand")
+    body_types = list(filters.get("body_types") or [])
+    excluded_body_types = filters.get("excluded_body_types") or prefs.get("excluded_body_types")
+    excluded_brands = filters.get("excluded_brands") or prefs.get("excluded_brands")
+    excluded_models = filters.get("excluded_models") or prefs.get("excluded_models")
 
     results = []
     if mcp_registry:

@@ -6,12 +6,15 @@ from contextlib import asynccontextmanager
 
 import asyncpg
 from fastapi import FastAPI
+from playwright.async_api import async_playwright
 
 from app.config import settings
-from app.core.llm import get_llm, get_fallback_llm
-from app.core.openrouter import get_openrouter_llm
+from app.core.llm import get_llm, get_fallback_llm, get_fallback_llm2, get_fallback_llm3
+from app.core.openrouter import get_openrouter_llm, get_openrouter_vision_llm, get_openrouter_vision_fallback_llm
 from app.core.tavily import TavilyWrapper
+from app.core.duckduckgo import DuckDuckGoSearch
 from app.core.cache import RedisClient
+from app.scrapers.manager import ScraperManager
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.routers import compare as compare_router
@@ -31,13 +34,35 @@ async def lifespan(app: FastAPI):
 
     redis_client = RedisClient(settings.redis_url)
     await redis_client.init()
+    await redis_client.delete_pattern("price:*")
+    await redis_client.delete_pattern("compare:*")
     app.state.redis = redis_client
 
     app.state.llm = get_openrouter_llm()
+    app.state.vision_llm = get_openrouter_vision_llm()
+    app.state.vision_fallback_llm = get_openrouter_vision_fallback_llm()
     app.state.groq_llm = get_llm()
     app.state.groq_fallback_llm = get_fallback_llm()
+    app.state.groq_fallback_llm2 = get_fallback_llm2()
+    app.state.groq_fallback_llm3 = get_fallback_llm3()
     app.state.tavily = TavilyWrapper(settings.tavily_api_key)
+    app.state.duckduckgo = DuckDuckGoSearch()
     app.state.report_cache = {}
+
+    # ── Scraper infrastructure (Playwright browser) ──
+    playwright = await async_playwright().start()
+    browser = await playwright.chromium.launch(
+        headless=True,
+        args=[
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-gpu",
+        ],
+    )
+    app.state.playwright = playwright
+    app.state.browser = browser
+    app.state.scraper = ScraperManager(browser)
 
     logger.info("Comparison service ready")
 
@@ -48,6 +73,10 @@ async def lifespan(app: FastAPI):
         await app.state.redis.close()
     if pool:
         await pool.close()
+    if app.state.browser:
+        await app.state.browser.close()
+    if app.state.playwright:
+        await app.state.playwright.stop()
 
 
 app = FastAPI(

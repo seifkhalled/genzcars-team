@@ -18,12 +18,14 @@ Available alternatives found:
 
 Write a friendly 2-3 sentence response in the same language the user wrote in:
 1. Acknowledge their specific request is not currently available
-2. Tell them what alternatives ARE available and why each is a good match
-   (same brand different model, same segment different brand, similar price range)
+2. Briefly mention that alternatives exist (e.g. "There are some similar
+   Toyotas and Hondas available"), but do NOT describe any individual car
 3. End on a positive note
 
-Do NOT list the cars in detail — they will be shown as visual cards below.
-Do NOT mention prices or specific numbers from alternatives unless very relevant."""
+CRITICAL — Your response MUST NOT contain any numbered lists, bullet points,
+or individual car descriptions. The visual cards below will show each
+alternative car. NEVER write anything like "Ad 1:", "1.", "Option 1:", or
+similar enumeration."""
 
 
 async def recommendation_node(state: CarsChatState, config: RunnableConfig) -> dict:

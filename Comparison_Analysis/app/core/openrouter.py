@@ -65,3 +65,23 @@ def get_openrouter_llm() -> OpenRouterChat:
         temperature=0.2,
         max_tokens=4096,
     )
+
+
+def get_openrouter_vision_llm() -> OpenRouterChat:
+    return OpenRouterChat(
+        model=settings.openrouter_vision_model,
+        api_key=settings.openrouter_api_key,
+        temperature=0.1,
+        max_tokens=2048,
+    )
+
+
+def get_openrouter_vision_fallback_llm() -> OpenRouterChat | None:
+    if not settings.openrouter_vision_model_fallback:
+        return None
+    return OpenRouterChat(
+        model=settings.openrouter_vision_model_fallback,
+        api_key=settings.openrouter_api_key,
+        temperature=0.1,
+        max_tokens=2048,
+    )

@@ -9,6 +9,7 @@ class CarAnalysis(TypedDict):
     price: float
     condition: str
     cover_image_url: str
+    photo_analysis: str
     pros: List[str]
     cons: List[str]
     scores: dict
@@ -18,6 +19,7 @@ class CarAnalysis(TypedDict):
     red_flags: List[str]
     spare_parts_availability: str
     service_centers_egypt: str
+    market_price: dict
 
 
 class ScoreComparison(TypedDict):

@@ -1,6 +1,26 @@
+from __future__ import annotations
+import threading
 from prometheus_client import Counter, Histogram
 
 SERVICE = "comparison_analysis"
+
+_lock = threading.Lock()
+_token_summary: dict[str, int] = {"prompt": 0, "completion": 0}
+
+
+def add_tokens(prompt: int, completion: int):
+    with _lock:
+        _token_summary["prompt"] += prompt
+        _token_summary["completion"] += completion
+
+
+def get_and_reset_tokens() -> dict[str, int]:
+    with _lock:
+        snapshot = dict(_token_summary)
+        _token_summary["prompt"] = 0
+        _token_summary["completion"] = 0
+    return snapshot
+
 
 llm_calls_total = Counter(
     'llm_calls_total',

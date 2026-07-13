@@ -12,7 +12,8 @@ class Settings(BaseSettings):
     openrouter_api_key: str = ""
     openrouter_api_key_fallback: str = ""
     openrouter_model: str = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"
-    openrouter_vision_model: str = "google/gemini-2.0-flash-exp:free"
+    openrouter_vision_model: str = "google/gemma-4-26b-a4b-it:free"
+    openrouter_vision_model_fallback: str = "google/gemini-2.5-flash-preview:free"
 
     database_url: str
 

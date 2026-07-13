@@ -24,7 +24,8 @@ class Settings(BaseSettings):
 
 
     openrouter_api_key: str = ""
-    openrouter_vision_model: str = "google/gemini-2.0-flash-exp:free"
+    openrouter_vision_model: str = "google/gemma-4-26b-a4b-it:free"
+    openrouter_vision_model_fallback: str = "google/gemini-2.5-flash-preview:free"
 
     supabase_storage_bucket: str = "car-images"
     supabase_brand_images_bucket: str = "brand-images"

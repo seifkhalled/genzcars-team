@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 from app.voice.stt import transcribe_audio
 from app.voice.tts import synthesize_speech
+from app.voice.autocorrect import autocorrect_transcript
 
 logger = logging.getLogger(__name__)
 
@@ -33,8 +34,11 @@ async def speech_to_text(audio: UploadFile = File(...)):
 
     try:
         result = await transcribe_audio(contents, audio.filename)
+
+        corrected = await autocorrect_transcript(result.text, result.language)
+
         return STTResponse(
-            text=result.text,
+            text=corrected or result.text,
             language=result.language,
             confidence=result.confidence,
         )
