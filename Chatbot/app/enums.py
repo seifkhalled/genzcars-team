@@ -19,6 +19,7 @@ class TaskType(str, Enum):
     PREFERENCE_EXTRACTOR = "preference_extractor"
     SEARCH = "search"
     CATALOGUE_CHECK = "catalogue_check"
+    GUIDE = "guide"
     GUIDE_TOPIC = "guide_topic"
     SEARCH_DECISION = "search_decision"
     ADVISOR = "advisor"

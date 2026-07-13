@@ -1,6 +1,8 @@
+import difflib
 import re
 import logging
 from abc import ABC, abstractmethod
+from bs4 import BeautifulSoup
 from playwright.async_api import Page
 
 logger = logging.getLogger(__name__)
@@ -100,16 +102,57 @@ class BaseScraper(ABC):
     def _build_url(self, make: str, model: str, year: int) -> str:
         ...
 
+    @abstractmethod
+    def _build_make_url(self, make: str) -> str:
+        ...
+
+    def _extract_model_names(self, html: str) -> list[str]:
+        try:
+            soup = BeautifulSoup(html, "lxml")
+            text = soup.get_text(separator=" ", strip=True)
+            words = re.findall(r"[a-zA-Z][a-zA-Z0-9\-]{2,}", text)
+            seen = set()
+            unique = []
+            for w in words:
+                lw = w.lower()
+                if lw not in seen and len(lw) >= 3:
+                    seen.add(lw)
+                    unique.append(lw)
+            return unique
+        except Exception:
+            return []
+
     async def search(self, page: Page, make: str, model: str, year: int) -> list[dict]:
+        items = await self._try_search(page, make, model, year)
+        if items:
+            return items
+
+        make_url = self._build_make_url(make)
+        html = await self._fetch(page, make_url)
+        if not html:
+            return []
+
+        candidates = self._extract_model_names(html)
+        matches = difflib.get_close_matches(model, candidates, n=3, cutoff=0.6)
+        for match in matches:
+            if match == model:
+                continue
+            logger.info("%s trying fuzzy-matched model '%s' for '%s'", self.source, match, model)
+            items = await self._try_search(page, make, match, year)
+            if items:
+                return items
+
+        return []
+
+    async def _try_search(self, page: Page, make: str, model: str, year: int) -> list[dict]:
         url = self._build_url(make, model, year)
         html = await self._fetch(page, url)
         if not html:
             logger.info("%s returned no HTML for %s %s %d", self.source, make, model, year)
             return []
-
         items = await self._parse_structured(html, make, model, year) or []
-
-        logger.info("%s found %d listings for %s %s %d", self.source, len(items), make, model, year)
+        if items:
+            logger.info("%s found %d listings for %s %s %d", self.source, len(items), make, model, year)
         return items
 
     async def _get_page_text(self, page: Page) -> str | None:

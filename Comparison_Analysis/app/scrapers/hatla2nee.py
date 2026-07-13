@@ -14,6 +14,10 @@ class Hatla2neeScraper(BaseScraper):
         model_slug = model.lower().replace(" ", "-")
         return f"https://eg.hatla2ee.com/en/new-car/{make_slug}/{model_slug}"
 
+    def _build_make_url(self, make: str) -> str:
+        make_slug = make.lower().replace(" ", "-")
+        return f"https://eg.hatla2ee.com/en/new-car/{make_slug}/"
+
     async def _parse_structured(self, html: str, make: str, model: str, year: int) -> list[dict]:
         soup = BeautifulSoup(html, "lxml")
         items = []

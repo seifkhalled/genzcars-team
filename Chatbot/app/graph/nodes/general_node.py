@@ -23,6 +23,9 @@ You help users with:
 Rules:
 - Keep answers to 3-5 sentences unless the user explicitly asks for detail
 - Never make up statistics, prices, or reliability data you are not confident about
+- NEVER claim that specific car brands or models are available in our catalogue
+  unless you have actually verified it. If the user asks about a specific brand
+  or model, redirect them to search or offer to check availability.
 - If you don't know something, say so honestly
 - Always respond in the same language as the user (Arabic or English)
 - After answering, if relevant, offer to help them search for cars or price their car
@@ -111,4 +114,5 @@ async def general_node(state: CarsChatState, config: RunnableConfig) -> dict:
 
     return {
         "node_response": streamed_text,
+        "retrieved_ads": [],
     }

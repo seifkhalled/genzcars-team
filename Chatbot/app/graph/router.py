@@ -13,7 +13,9 @@ Available agents and when to use each:
 - catalogue_node: user wants to find, browse, filter, or GET RECOMMENDATIONS for
   cars. Any mention of specs, budget, city, brand, condition, "show me cars",
   "recommend", "suggest", "what should I buy", "best car", "help me choose",
-  "offer me" (meaning "show me offers/deals"), or "offers" in a buying context.
+  "offer me" (meaning "show me offers/deals"), "offers" in a buying context,
+  "I recommend X" (meaning "I want X" or "I'm interested in X"), or "I want X"
+  where X is a car brand/model.
 - advisor_node: user is asking about a SPECIFIC car already in the conversation
   or on the current page. Questions like "is this a good deal?", "what are the
   problems with this car?", "should I buy it?" when a car is in context.

@@ -146,6 +146,8 @@
     "confidence": "Confidence",
     "viewDetails": "View Details",
     "price": "Price",
+    "marketAvg": "Market Avg",
+    "vsMarket": "vs. Market",
     "year": "Year",
     "condition": "Condition",
     "kmDriven": "KM Driven",

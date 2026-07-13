@@ -17,6 +17,12 @@ If the user asks BROADLY ("find me cars", "show me some cars",
 "cheap automatic"), set exact_request to null — this is a general
 semantic search, not a catalogue lookup.
 
+CRITICAL: Use conversation history to resolve pronouns and references.
+If the user says "one", "it", "that", "this car", or similar references,
+look at the conversation history to determine what they are referring to.
+For example, if they previously mentioned "Mercedes" and now say
+"recommend one", "one" refers to a Mercedes.
+
 CRITICAL: Expand brand origin requests into the actual brand names:
 {brand_origins_prompt}
 
@@ -31,6 +37,9 @@ Return ONLY valid JSON. No explanation, no markdown:
   "is_specific": true | false,
   "request_label": "short description of what user asked for"
 }}
+
+Conversation history:
+{conversation_history}
 
 User message: "{message}" """
 
@@ -52,11 +61,19 @@ async def catalogue_node(state: CarsChatState, config: RunnableConfig) -> dict:
 
     last_message = state["messages"][-1].content if state.get("messages") else ""
 
+    # Build conversation history for context
+    history_msgs = []
+    for m in state.get("messages", [])[-6:-1]:
+        role = "user" if m.type == "human" else "assistant"
+        history_msgs.append(f"{role}: {m.content}")
+    conversation_history = "\n".join(history_msgs) if history_msgs else "No prior conversation."
+
     # Step 1: LLM extracts exact request
     messages = [
         SystemMessage(content=EXTRACT_CATALOGUE_SYSTEM.format(
             message=last_message,
             brand_origins_prompt=format_brand_origins_prompt(),
+            conversation_history=conversation_history,
         )),
         HumanMessage(content=last_message),
     ]

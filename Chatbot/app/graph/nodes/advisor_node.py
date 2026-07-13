@@ -190,4 +190,5 @@ async def advisor_node(state: CarsChatState, config: RunnableConfig) -> dict:
     return {
         "node_response": streamed_text,
         "similar_ads": similar_ads,
+        "retrieved_ads": [],
     }

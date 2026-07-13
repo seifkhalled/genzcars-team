@@ -11,7 +11,7 @@ from app.core.cache import llm_response_cache
 logger = logging.getLogger(__name__)
 
 SIMPLE_TASKS = {TaskType.ROUTER, TaskType.PREFERENCE_EXTRACTOR, TaskType.GUIDE_TOPIC, TaskType.SEARCH_DECISION, TaskType.CATALOGUE_CHECK}
-COMPLEX_TASKS = {TaskType.ADVISOR, TaskType.SELLER, TaskType.SEARCH, TaskType.RECOMMENDATION, TaskType.GENERAL, TaskType.COMPARISON}
+COMPLEX_TASKS = {TaskType.ADVISOR, TaskType.SELLER, TaskType.SEARCH, TaskType.RECOMMENDATION, TaskType.GENERAL, TaskType.COMPARISON, TaskType.GUIDE}
 
 _CACHEABLE_SIMPLE = {TaskType.ROUTER, TaskType.GUIDE_TOPIC, TaskType.SEARCH_DECISION}
 
@@ -25,6 +25,9 @@ class MultiLLM:
 
     def __init__(self):
         self._fast_groq: ChatGroq | None = None
+        self._fast_groq_fallback: ChatGroq | None = None
+        self._fast_groq_fallback2: ChatGroq | None = None
+        self._fast_groq_fallback3: ChatGroq | None = None
         self._powerful_groq: ChatGroq | None = None
         self._powerful_openrouter: OpenRouterChat | None = None
 
@@ -41,6 +44,42 @@ class MultiLLM:
                 max_tokens=1024,
             )
         return self._fast_groq
+
+    @property
+    def fast_fallback(self) -> ChatGroq | None:
+        if self._fast_groq_fallback is None and settings.groq_api_key_fallback:
+            self._fast_groq_fallback = ChatGroq(
+                model=settings.groq_model_fallback or settings.groq_model,
+                api_key=settings.groq_api_key_fallback,
+                temperature=0,
+                streaming=False,
+                max_tokens=1024,
+            )
+        return self._fast_groq_fallback
+
+    @property
+    def fast_fallback2(self) -> ChatGroq | None:
+        if self._fast_groq_fallback2 is None and settings.groq_api_key_fallback2:
+            self._fast_groq_fallback2 = ChatGroq(
+                model=settings.groq_model_fallback or settings.groq_model,
+                api_key=settings.groq_api_key_fallback2,
+                temperature=0,
+                streaming=False,
+                max_tokens=1024,
+            )
+        return self._fast_groq_fallback2
+
+    @property
+    def fast_fallback3(self) -> ChatGroq | None:
+        if self._fast_groq_fallback3 is None and settings.groq_api_key_fallback3:
+            self._fast_groq_fallback3 = ChatGroq(
+                model=settings.groq_model_fallback or settings.groq_model,
+                api_key=settings.groq_api_key_fallback3,
+                temperature=0,
+                streaming=False,
+                max_tokens=1024,
+            )
+        return self._fast_groq_fallback3
 
     # ── Powerful model for complex reasoning ──
 
@@ -85,7 +124,7 @@ class MultiLLM:
         llm = self.get_for_task(task_type, streaming=False)
 
         if task_type in SIMPLE_TASKS:
-            fallbacks = [self.fast]
+            fallbacks = [p for p in (self.fast, self.fast_fallback, self.fast_fallback2, self.fast_fallback3) if p is not None]
         else:
             fallbacks = [p for p in (self.powerful, self.powerful_alt, self.fast) if p is not None]
 
@@ -130,7 +169,7 @@ class MultiLLM:
         llm = self.get_for_task(task_type, streaming=True)
 
         if task_type in SIMPLE_TASKS:
-            fallbacks = [self.fast]
+            fallbacks = [p for p in (self.fast, self.fast_fallback, self.fast_fallback2, self.fast_fallback3) if p is not None]
         else:
             fallbacks = [p for p in (self.powerful, self.powerful_alt, self.fast) if p is not None]
 

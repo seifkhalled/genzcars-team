@@ -5,6 +5,7 @@ class Settings(BaseSettings):
     groq_api_key: str
     groq_api_key_fallback: str = ""
     groq_api_key_fallback2: str = ""
+    groq_api_key_fallback3: str = ""
     groq_model: str = "openai/gpt-oss-120b"
     groq_model_fallback: str = "qwen/qwen3.6-27b"
 

@@ -12,12 +12,15 @@ class DubizzleScraper(BaseScraper):
     source = "dubizzle.com.eg"
 
     def _build_url(self, make: str, model: str, year: int) -> str:
-        make_slug = make.lower().replace(" ", "-")
-        model_slug = model.lower().replace(" ", "-")
+        query = f"{make} {model} {year}".lower().replace(" ", "-")
         return (
-            f"https://www.dubizzle.com.eg/vehicles/cars-for-sale/"
-            f"{make_slug}/model-{model_slug}/{year}/"
+            f"https://www.dubizzle.com.eg/en/vehicles/cars-for-sale/"
+            f"q-{query}/"
         )
+
+    def _build_make_url(self, make: str) -> str:
+        make_slug = make.lower().replace(" ", "-")
+        return f"https://www.dubizzle.com.eg/en/vehicles/cars-for-sale/{make_slug}/"
 
     async def search(self, page: Page, make: str, model: str, year: int) -> list[dict]:
         url = self._build_url(make, model, year)

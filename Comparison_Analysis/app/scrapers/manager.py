@@ -52,7 +52,7 @@ class ScraperManager:
         unique = []
         for ad in all_listings:
             ad_year = ad.get("year", year)
-            if ad_year != year:
+            if ad_year is None or abs(ad_year - year) > 1:
                 continue
             key = ad.get("url", "") or f"{ad['source']}:{ad['title']}:{ad['price']}"
             if key not in seen:

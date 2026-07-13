@@ -15,6 +15,10 @@ class ContactCarsScraper(BaseScraper):
         model_slug = model.lower().replace(" ", "-")
         return f"https://www.contactcars.com/en/new-cars/{make_slug}-{model_slug}"
 
+    def _build_make_url(self, make: str) -> str:
+        make_slug = make.lower().replace(" ", "-")
+        return f"https://www.contactcars.com/en/new-cars/{make_slug}"
+
     async def _parse_structured(self, html: str, make: str, model: str, year: int) -> list[dict]:
         soup = BeautifulSoup(html, "lxml")
         items = []

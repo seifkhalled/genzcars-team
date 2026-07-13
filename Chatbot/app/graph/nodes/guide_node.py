@@ -67,4 +67,5 @@ async def guide_node(state: CarsChatState, config: RunnableConfig) -> dict:
 
     return {
         "node_response": streamed_text,
+        "retrieved_ads": [],
     }

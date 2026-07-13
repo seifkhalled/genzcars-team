@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTranslations } from 'next-intl'
@@ -12,7 +13,10 @@ export function CompareTray() {
   const t = useTranslations('Compare')
   const router = useRouter()
   const pathname = usePathname()
-  const { ads, removeAd, clearAll } = useCompareStore()
+  const { ads, removeAd, clearAll, hydrate } = useCompareStore()
+
+  useEffect(() => { hydrate() }, [])
+
   const show = ads.length > 0 && pathname !== '/compare'
 
   return (
