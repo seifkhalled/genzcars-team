@@ -189,7 +189,21 @@ async def lifespan(app: FastAPI):
     # compatible with AsyncPostgresSaver). The pool is kept open for the
     # app lifetime and closed on shutdown.
     dsn = settings.database_url.replace("postgresql+asyncpg://", "postgresql://")
-    checkpointer_pool = AsyncConnectionPool(dsn, open=False, min_size=1, max_size=5)
+
+    # The checkpointer runs DDL (incl. CREATE INDEX CONCURRENTLY) that must
+    # execute outside a transaction, so its connections require autocommit.
+    # AsyncPostgresSaver.from_conn_string sets this; when using a pool we must
+    # configure it explicitly or setup() fails with
+    # "CREATE INDEX CONCURRENTLY cannot run inside a transaction block".
+    async def _checkpointer_conn_configure(conn) -> None:
+        # Async psycopg connections expose `autocommit` as read-only; it must
+        # be set via the awaitable. (Sync `conn.autocommit = True` raises and
+        # poisons every connection in the pool.)
+        await conn.set_autocommit(True)
+
+    checkpointer_pool = AsyncConnectionPool(
+        dsn, open=False, min_size=1, max_size=5, configure=_checkpointer_conn_configure
+    )
     await checkpointer_pool.open()
     checkpointer = AsyncPostgresSaver(checkpointer_pool)
     await checkpointer.setup()

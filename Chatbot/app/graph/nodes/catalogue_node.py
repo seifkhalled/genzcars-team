@@ -124,13 +124,27 @@ async def catalogue_node(state: CarsChatState, config: RunnableConfig) -> dict:
                 })
 
         if available_brands:
-            # Found exact matches
+            # Found exact matches — write confirmed brands back to preferences
+            # so the brand context survives to subsequent turns even when the
+            # preference_extractor's fire-and-forget upsert hasn't completed.
+            confirmed_brands = [b["brand"] for b in available_brands]
+            updated_prefs = dict(state.get("preferences", {}))
+            existing = updated_prefs.get("preferred_brands")
+            if existing:
+                merged = list(existing)
+                for b in confirmed_brands:
+                    if b not in merged:
+                        merged.append(b)
+                updated_prefs["preferred_brands"] = merged
+            else:
+                updated_prefs["preferred_brands"] = confirmed_brands
             return {
                 "catalogue_check": {
                     "available": True,
                     "requested": request_label,
                     "available_brands": available_brands,
                 },
+                "preferences": updated_prefs,
                 "next_node": NodeName.SEARCH,
             }
         else:

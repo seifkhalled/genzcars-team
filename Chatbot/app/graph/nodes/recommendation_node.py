@@ -10,6 +10,12 @@ logger = logging.getLogger(__name__)
 RECOMMENDATION_SYSTEM = """The user asked for a specific car that is NOT available
 in our catalogue. You need to recommend alternative cars that are actually in stock.
 
+CRITICAL MARKET CONTEXT — This is an Egyptian marketplace:
+- Currency is ALWAYS EGP (Egyptian Pounds). NEVER use USD, dollars, $, or
+  any non-Egyptian currency.
+- Cities are ALWAYS Egyptian (e.g., Cairo, Alexandria, Giza, New Cairo).
+  NEVER use non-Egyptian cities or states.
+
 They wanted: {requested_description}
 What they searched for: brands={brands_searched}, model={model}, year={year}, body_type={body_type}
 
@@ -21,6 +27,8 @@ Write a friendly 2-3 sentence response in the same language the user wrote in:
 2. Briefly mention that alternatives exist (e.g. "There are some similar
    Toyotas and Hondas available"), but do NOT describe any individual car
 3. End on a positive note
+4. If no alternatives summary data is available, say you couldn't find
+   alternatives — NEVER describe imagined listings.
 
 CRITICAL — Your response MUST NOT contain any numbered lists, bullet points,
 or individual car descriptions. The visual cards below will show each
@@ -165,25 +173,28 @@ async def recommendation_node(state: CarsChatState, config: RunnableConfig) -> d
     model_str = model or "any"
 
     streamed_text = ""
-    response_msgs = [
-        SystemMessage(content=RECOMMENDATION_SYSTEM.format(
-            requested_description=request_label,
-            brands_searched=brands_str,
-            model=model_str,
-            year=year or "any",
-            body_type=body_type or "any",
-            alternatives_summary=alternatives_summary,
-        )),
-        HumanMessage(content=last_message),
-    ]
-    if multi_llm:
-        async for chunk in multi_llm.astream_task(TaskType.RECOMMENDATION, response_msgs):
-            content = chunk.content if hasattr(chunk, "content") else str(chunk)
-            streamed_text += content
+    if not ads:
+        streamed_text = f"I checked our catalogue but {request_label or 'the car you requested'} is not currently available, and I couldn't find any alternative listings matching your preferences. Try a different brand or model, or check back later."
     else:
-        async for chunk in llm_stream.astream(response_msgs):
-            content = chunk.content if hasattr(chunk, "content") else str(chunk)
-            streamed_text += content
+        response_msgs = [
+            SystemMessage(content=RECOMMENDATION_SYSTEM.format(
+                requested_description=request_label,
+                brands_searched=brands_str,
+                model=model_str,
+                year=year or "any",
+                body_type=body_type or "any",
+                alternatives_summary=alternatives_summary,
+            )),
+            HumanMessage(content=last_message),
+        ]
+        if multi_llm:
+            async for chunk in multi_llm.astream_task(TaskType.RECOMMENDATION, response_msgs):
+                content = chunk.content if hasattr(chunk, "content") else str(chunk)
+                streamed_text += content
+        else:
+            async for chunk in llm_stream.astream(response_msgs):
+                content = chunk.content if hasattr(chunk, "content") else str(chunk)
+                streamed_text += content
 
     return {
         "retrieved_ads": ads[:2],

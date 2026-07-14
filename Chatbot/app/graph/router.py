@@ -9,25 +9,31 @@ logger = logging.getLogger(__name__)
 
 
 ROUTER_SYSTEM = """You are the routing brain of a car marketplace AI assistant.
-Based on the conversation history and the latest user message, decide which
-specialist agent should handle this request.
+Based on the FULL conversation history and the latest user message, decide which
+specialist agent should handle this request. Use the conversation history to
+determine the user's true intent — not just the literal words in the latest message.
 
 Available agents and when to use each:
-- catalogue_node: user wants to find, browse, filter, or GET RECOMMENDATIONS for
-  cars. Any mention of specs, budget, city, brand, condition, "show me cars",
-  "recommend", "suggest", "what should I buy", "best car", "help me choose",
-  "offer me" (meaning "show me offers/deals"), "offers" in a buying context,
-  "I recommend X" (meaning "I want X" or "I'm interested in X"), or "I want X"
-  where X is a car brand/model.
+- catalogue_node: user wants to FIND, BROWSE, or GET LISTINGS for cars.
+  This includes: asking for recommendations, mentioning a brand/model/budget,
+  wanting to see cars, or any request that implies "show me cars" based on
+  conversation context. If the user previously asked about BMWs and now says
+  "send me one" or "show me", the intent is still catalogue_node — they want
+  to see BMW listings.
 - advisor_node: user is asking about a SPECIFIC car already in the conversation
   or on the current page. Questions like "is this a good deal?", "what are the
   problems with this car?", "should I buy it?" when a car is in context.
-- seller_node: user wants to sell a car, price their car, get listing advice,
-  or understand how to write a better ad. KEY DISTINCTION: "offer me" is BUYING
-  intent (give me offers = show me cars). Only route here if they explicitly say
-  "I want to sell" or "I'm offering my car".
-- guide_node: user needs help using the website. How to post an ad, how to
-  filter, how to compare, how favorites work, how to contact a seller.
+- seller_node: user wants to SELL their car, price their car, or get listing
+  advice. Only route here if the user's intent is clearly about selling or
+  has stated "I want to sell". If they ask "offer me" or "send me offers" in
+  a context where they've been asking about buying, route to catalogue_node.
+- guide_node: user needs HELP USING the website itself — "how to" questions
+  about website features (posting, filtering, comparing, contacting sellers).
+  KEY DISTINCTION: If the user says "send me an ad" / "show me an ad" but the
+  conversation history shows they are a BUYER (asking about cars, brands,
+  recommendations), this is catalogue_node — they want to see a listing, not
+  learn how to post one. Only route to guide_node for explicit "how to" questions
+  about website mechanics.
 - general_node: general car knowledge, reliability questions, maintenance advice,
   insurance, market trends, news, greetings, unclear intent, or anything that
   doesn't fit the above.
