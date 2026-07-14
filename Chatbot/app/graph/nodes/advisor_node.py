@@ -31,7 +31,7 @@ Conversation history:
 """
 
 async def advisor_node(state: CarsChatState, config: RunnableConfig) -> dict:
-    llm_router = config["configurable"].get("llm_router")
+    multi_llm = config["configurable"].get("multi_llm")
     llm_fast = config["configurable"]["llm_fast"]
     llm_stream = config["configurable"]["llm_stream"]
     embedder = config["configurable"]["embedder"]
@@ -77,8 +77,8 @@ async def advisor_node(state: CarsChatState, config: RunnableConfig) -> dict:
                 )),
                 HumanMessage(content=last_message),
             ]
-            if llm_router:
-                pick_resp = await llm_router.ainvoke_task(TaskType.ADVISOR, pick_msgs)
+            if multi_llm:
+                pick_resp = await multi_llm.ainvoke_task(TaskType.ADVISOR, pick_msgs)
             else:
                 pick_resp = await llm_fast.ainvoke(pick_msgs)
             try:
@@ -130,8 +130,8 @@ async def advisor_node(state: CarsChatState, config: RunnableConfig) -> dict:
         )),
         HumanMessage(content=last_message),
     ]
-    if llm_router:
-        async for chunk in llm_router.astream_task(TaskType.ADVISOR, response_msgs):
+    if multi_llm:
+        async for chunk in multi_llm.astream_task(TaskType.ADVISOR, response_msgs):
             content = chunk.content if hasattr(chunk, "content") else str(chunk)
             streamed_text += content
     else:

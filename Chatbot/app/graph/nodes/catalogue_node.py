@@ -57,7 +57,7 @@ def _clean_json(text: str) -> str:
 
 
 async def catalogue_node(state: CarsChatState, config: RunnableConfig) -> dict:
-    llm_router = config["configurable"].get("llm_router")
+    multi_llm = config["configurable"].get("multi_llm")
     llm_fast = config["configurable"].get("llm_fast")
     pool = config["configurable"].get("db_pool")
     mcp_registry = config["configurable"].get("mcp_registry")
@@ -80,8 +80,8 @@ async def catalogue_node(state: CarsChatState, config: RunnableConfig) -> dict:
         )),
         HumanMessage(content=last_message),
     ]
-    if llm_router:
-        response = await llm_router.ainvoke_task(TaskType.CATALOGUE_CHECK, messages)
+    if multi_llm:
+        response = await multi_llm.ainvoke_task(TaskType.CATALOGUE_CHECK, messages)
     else:
         response = await llm_fast.ainvoke(messages)
 

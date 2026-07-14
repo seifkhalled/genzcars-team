@@ -137,7 +137,7 @@ def _is_trivial_message(message: str) -> bool:
     return not any(kw in text_lower for kw in preference_keywords)
 
 
-async def _inference_pass(message: str, prefs: dict, llm_router) -> dict | None:
+async def _inference_pass(message: str, prefs: dict, multi_llm) -> dict | None:
     """Pass 1: infer needs from use-case language. Returns None if skipped."""
     if _is_trivial_message(message):
         return None
@@ -148,7 +148,7 @@ async def _inference_pass(message: str, prefs: dict, llm_router) -> dict | None:
         preferences_json=prefs_json,
     ))
     try:
-        response = await llm_router.ainvoke_task(TaskType.PREFERENCE_EXTRACTOR, [
+        response = await multi_llm.ainvoke_task(TaskType.PREFERENCE_EXTRACTOR, [
             system_msg,
             HumanMessage(content=message),
         ])
@@ -208,16 +208,13 @@ def _merge_preferences(merged: dict, extracted: dict) -> dict:
 
         else:
             # Scalar fields
-            if key == "is_seller":
-                merged[key] = val
-            else:
-                merged[key] = val
+            merged[key] = val
 
     return merged
 
 
 async def preference_extractor_node(state: CarsChatState, config: RunnableConfig) -> dict:
-    llm_router = config["configurable"].get("llm_router")
+    multi_llm = config["configurable"].get("multi_llm")
     llm_fast = config["configurable"].get("llm_fast")
     pool = config["configurable"].get("db_pool")
 
@@ -229,8 +226,8 @@ async def preference_extractor_node(state: CarsChatState, config: RunnableConfig
 
     # ── Pass 1: Need inference (skip on first turn — greeting/exploration) ──
     inference_result = None
-    if llm_router and state.get("turn_count", 0) > 0:
-        inference_result = await _inference_pass(last_message, current_prefs, llm_router)
+    if multi_llm and state.get("turn_count", 0) > 0:
+        inference_result = await _inference_pass(last_message, current_prefs, multi_llm)
 
     # ── Build inference context for Pass 2 ────────────────────────────
     inference_context = ""
@@ -257,8 +254,8 @@ async def preference_extractor_node(state: CarsChatState, config: RunnableConfig
         message=last_message,
     )
 
-    if llm_router:
-        response = await llm_router.ainvoke_task(TaskType.PREFERENCE_EXTRACTOR, [
+    if multi_llm:
+        response = await multi_llm.ainvoke_task(TaskType.PREFERENCE_EXTRACTOR, [
             SystemMessage(content=system_prompt),
             HumanMessage(content=last_message),
         ])

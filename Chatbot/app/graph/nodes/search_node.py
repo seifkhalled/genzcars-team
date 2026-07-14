@@ -115,7 +115,7 @@ def merge_dedup_results(primary: list[dict], secondary: list[dict], max_count: i
 
 
 async def search_node(state: CarsChatState, config: RunnableConfig) -> dict:
-    llm_router = config["configurable"].get("llm_router")
+    multi_llm = config["configurable"].get("multi_llm")
     llm_fast = config["configurable"]["llm_fast"]
     llm_stream = config["configurable"]["llm_stream"]
     embedder = config["configurable"]["embedder"]
@@ -138,8 +138,8 @@ async def search_node(state: CarsChatState, config: RunnableConfig) -> dict:
         conversation_history=conversation_history,
         expansions_prompt=format_expansions_prompt(),
     ))
-    if llm_router:
-        query_response = await llm_router.ainvoke_task(TaskType.SEARCH, [system_msg, HumanMessage(content=last_message)])
+    if multi_llm:
+        query_response = await multi_llm.ainvoke_task(TaskType.SEARCH, [system_msg, HumanMessage(content=last_message)])
     else:
         query_response = await llm_fast.ainvoke([system_msg, HumanMessage(content=last_message)])
 
@@ -348,8 +348,8 @@ async def search_node(state: CarsChatState, config: RunnableConfig) -> dict:
         )),
         HumanMessage(content=last_message),
     ]
-    if llm_router:
-        async for chunk in llm_router.astream_task(TaskType.SEARCH, response_msgs):
+    if multi_llm:
+        async for chunk in multi_llm.astream_task(TaskType.SEARCH, response_msgs):
             content = chunk.content if hasattr(chunk, "content") else str(chunk)
             streamed_text += content
     else:

@@ -66,7 +66,7 @@ class OpenRouterChat(BaseChatModel):
                 )
             except httpx.HTTPStatusError as e:
                 last_error = e
-                if 500 <= e.response.status_code < 600:
+                if 500 <= e.response.status_code < 600 or e.response.status_code == 429:
                     await asyncio.sleep(2 ** attempt)
                     continue
                 raise
@@ -137,7 +137,7 @@ class OpenRouterChat(BaseChatModel):
                 return
             except httpx.HTTPStatusError as e:
                 last_error = e
-                if 500 <= e.response.status_code < 600:
+                if 500 <= e.response.status_code < 600 or e.response.status_code == 429:
                     await asyncio.sleep(2 ** attempt)
                     continue
                 raise

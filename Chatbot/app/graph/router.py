@@ -43,7 +43,7 @@ catalogue_node | advisor_node | seller_node | guide_node | general_node
 
 
 async def router_node(state: CarsChatState, config: RunnableConfig) -> dict:
-    llm_router = config["configurable"].get("llm_router")
+    multi_llm = config["configurable"].get("multi_llm")
 
     last_message = state["messages"][-1].content if state.get("messages") else ""
 
@@ -54,8 +54,8 @@ async def router_node(state: CarsChatState, config: RunnableConfig) -> dict:
         history_msgs.append(f"{role}: {m.content}")
     message_history = "\n".join(history_msgs) if history_msgs else "No prior conversation."
 
-    if llm_router:
-        response = await llm_router.ainvoke_task(TaskType.ROUTER, [
+    if multi_llm:
+        response = await multi_llm.ainvoke_task(TaskType.ROUTER, [
             SystemMessage(content=ROUTER_SYSTEM.format(
                 message_history=message_history,
                 has_context="yes" if state.get("context_ad_id") else "no",

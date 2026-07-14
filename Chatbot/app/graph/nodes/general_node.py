@@ -57,7 +57,7 @@ User message: "{message}"""
 
 
 async def general_node(state: CarsChatState, config: RunnableConfig) -> dict:
-    llm_router = config["configurable"].get("llm_router")
+    multi_llm = config["configurable"].get("multi_llm")
     llm_fast = config["configurable"]["llm_fast"]
     llm_stream = config["configurable"]["llm_stream"]
     pool = config["configurable"].get("db_pool")
@@ -73,8 +73,8 @@ async def general_node(state: CarsChatState, config: RunnableConfig) -> dict:
                 SystemMessage(content=SEARCH_DECIDE_SYSTEM.format(message=last_message)),
                 HumanMessage(content=last_message),
             ]
-            if llm_router:
-                decide_resp = await llm_router.ainvoke_task(TaskType.SEARCH_DECISION, decide_msgs)
+            if multi_llm:
+                decide_resp = await multi_llm.ainvoke_task(TaskType.SEARCH_DECISION, decide_msgs)
             else:
                 decide_resp = await llm_fast.ainvoke(decide_msgs)
             decision = json.loads(
@@ -103,8 +103,8 @@ async def general_node(state: CarsChatState, config: RunnableConfig) -> dict:
         )),
         HumanMessage(content=last_message),
     ]
-    if llm_router:
-        async for chunk in llm_router.astream_task(TaskType.GENERAL, response_msgs):
+    if multi_llm:
+        async for chunk in multi_llm.astream_task(TaskType.GENERAL, response_msgs):
             content = chunk.content if hasattr(chunk, "content") else str(chunk)
             streamed_text += content
     else:

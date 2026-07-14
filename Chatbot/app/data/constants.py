@@ -29,6 +29,8 @@ RESPONDER_TOKEN_DELAY_SECONDS = 0.02
 
 # ---- Node status messages ----
 NODE_STATUS_MAP = {
+    NodeName.PREFERENCE_EXTRACTOR: "Understanding your needs...",
+    NodeName.ROUTER: "Thinking...",
     NodeName.CATALOGUE: "Checking our catalogue...",
     NodeName.SEARCH: "Searching listings...",
     NodeName.RECOMMENDATION: "Finding alternatives...",

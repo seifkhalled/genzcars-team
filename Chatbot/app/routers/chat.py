@@ -37,7 +37,7 @@ async def chat_message(request: ChatRequest, req: Request):
 
         try:
             # Guardrail: input validation
-            from app.core.guardrails import validate_input
+            from app.core.guardrails import validate_input, is_car_related
             is_valid, error_msg = validate_input(request.message)
             if not is_valid:
                 yield f"data: {json.dumps({'type': 'error', 'content': error_msg})}\n\n"
@@ -66,7 +66,7 @@ async def chat_message(request: ChatRequest, req: Request):
                 "tags": ["langgraph", "chat", f"env:{settings.environment}"],
                 "configurable": {
                     "thread_id": request.session_token,
-                    "llm_router": getattr(app.state, "llm_router", None),
+                    "multi_llm": getattr(app.state, "llm_router", None),
                     "llm_fast": app.state.llm_router.fast if hasattr(app.state, "llm_router") else None,
                     "llm_stream": (app.state.llm_router.powerful or app.state.llm_router.fast) if hasattr(app.state, "llm_router") else None,
                     "cost_tracker": cost_tracker,
@@ -82,6 +82,7 @@ async def chat_message(request: ChatRequest, req: Request):
 
             existing = await graph.aget_state({"configurable": {"thread_id": request.session_token}})
             has_checkpoint = existing is not None and bool(getattr(existing, "values", None))
+            has_prior_context = has_checkpoint
 
             messages_history: list = []
             preferences: dict = {}
@@ -92,11 +93,12 @@ async def chat_message(request: ChatRequest, req: Request):
                 try:
                     from app.db.queries import get_chat_history, get_preferences
                     async with pool.acquire() as conn:
-                        has_session = await conn.fetchval(
+                        session_exists = await conn.fetchval(
                             "SELECT 1 FROM chat_sessions WHERE session_token = $1::VARCHAR",
                             session_token,
                         )
-                    if has_session:
+                    if session_exists:
+                        has_prior_context = True
                         db_msgs = await get_chat_history(pool, session_token)
                         for m in db_msgs:
                             if m["role"] == "user":
@@ -149,6 +151,15 @@ async def chat_message(request: ChatRequest, req: Request):
                     "turn_count": turn_count,
                     "intent_history": intent_history,
                 }
+
+            # First-turn guard: only reject clearly off-topic messages when there
+            # is no prior conversation context (checkpoint or DB history). This
+            # avoids breaking multi-turn continuations that lack explicit car
+            # keywords (e.g. "tell me more about the first one").
+            if not has_prior_context and not is_car_related(request.message):
+                yield f"data: {json.dumps({'type': 'error', 'content': 'I can only help with car marketplace related questions.'})}\n\n"
+                yield f"data: {json.dumps({'type': 'done', 'content': None})}\n\n"
+                return
 
             graph = app.state.graph
 

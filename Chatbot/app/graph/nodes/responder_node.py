@@ -1,9 +1,22 @@
 import asyncio
+import logging
 import re
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
 from app.graph.state import CarsChatState
 from app.data.constants import NODE_STATUS_MAP, RESPONDER_TOKEN_DELAY_SECONDS
+from app.core.guardrails import validate_output
+
+logger = logging.getLogger(__name__)
+
+
+async def _run_bg(coro, label: str):
+    """Run a fire-and-forget task and log any failure instead of letting it
+    vanish as an unretrieved Task exception."""
+    try:
+        await coro
+    except Exception:
+        logger.exception("Background persistence task '%s' failed", label)
 
 _AD_ENUM_PATTERN = re.compile(
     r'(?:^|\n)\s*(?:\d+[\.\)]\s+|(?:ad|option|alternative|choice)\s+#?\d+\s*[:\.\)\-]+\s*)',
@@ -25,19 +38,10 @@ def _clean_node_response(text: str) -> str:
     if not text:
         return ""
     if "invalid_tool_calls=" in text or ("additional_kwargs=" in text and "response_metadata=" in text):
-        for quote in ("'", '"'):
-            prefix = f"content={quote}"
-            if prefix in text:
-                start = text.index(prefix) + len(prefix)
-                end = start
-                while end < len(text):
-                    if text[end] == "\\":
-                        end += 2
-                    elif text[end] == quote:
-                        break
-                    else:
-                        end += 1
-                return text[start:end]
+        logger.warning(
+            "LLM response contains raw object artifacts (invalid_tool_calls/kwargs); "
+            "passing through unparsed: %.200s", text
+        )
     return text.strip()
 
 
@@ -47,6 +51,7 @@ async def responder_node(state: CarsChatState, config: RunnableConfig) -> dict:
     sse_queue = config["configurable"].get("sse_queue")
     session_token = state.get("session_token", "")
     node_response = _strip_ad_enumerations(_clean_node_response(state.get("node_response", "")))
+    validate_output(node_response)
     retrieved = state.get("retrieved_ads", [])
     intent = state.get("intent", "")
 
@@ -105,15 +110,18 @@ async def responder_node(state: CarsChatState, config: RunnableConfig) -> dict:
         # mutations are captured) for the /history endpoint. The responder is
         # on every path to END, so this runs for every completed turn.
         asyncio.ensure_future(
-            upsert_user_preferences(
-                pool,
-                session_token,
-                state.get("user_id"),
-                {
-                    **(state.get("preferences") or {}),
-                    "intent_history": state.get("intent_history", []),
-                    "turn_count": state.get("turn_count", 0),
-                },
+            _run_bg(
+                upsert_user_preferences(
+                    pool,
+                    session_token,
+                    state.get("user_id"),
+                    {
+                        **(state.get("preferences") or {}),
+                        "intent_history": state.get("intent_history", []),
+                        "turn_count": state.get("turn_count", 0),
+                    },
+                ),
+                "upsert_user_preferences",
             )
         )
 
@@ -132,12 +140,18 @@ async def responder_node(state: CarsChatState, config: RunnableConfig) -> dict:
                     break
             if user_msg:
                 asyncio.ensure_future(
-                    insert_chat_message(pool, session_token, "user", user_msg, node_used=intent)
+                    _run_bg(
+                        insert_chat_message(pool, session_token, "user", user_msg, node_used=intent),
+                        "insert_chat_message:user",
+                    )
                 )
 
         # Fire-and-forget: insert assistant response
         asyncio.ensure_future(
-            insert_chat_message(pool, session_token, "assistant", node_response, node_used=intent, referenced_ad_ids=ref_ids if ref_ids else None)
+            _run_bg(
+                insert_chat_message(pool, session_token, "assistant", node_response, node_used=intent, referenced_ad_ids=ref_ids if ref_ids else None),
+                "insert_chat_message:assistant",
+            )
         )
 
     # 8. Append to messages

@@ -77,7 +77,7 @@ Always respond in the same language as the user (Arabic or English).
 
 
 async def seller_node(state: CarsChatState, config: RunnableConfig) -> dict:
-    llm_router = config["configurable"].get("llm_router")
+    multi_llm = config["configurable"].get("multi_llm")
     llm_fast = config["configurable"]["llm_fast"]
     llm_stream = config["configurable"]["llm_stream"]
     embedder = config["configurable"]["embedder"]
@@ -103,8 +103,8 @@ async def seller_node(state: CarsChatState, config: RunnableConfig) -> dict:
         )),
         HumanMessage(content=last_message),
     ]
-    if llm_router:
-        extract_response = await llm_router.ainvoke_task(TaskType.SELLER, extract_msgs)
+    if multi_llm:
+        extract_response = await multi_llm.ainvoke_task(TaskType.SELLER, extract_msgs)
     else:
         extract_response = await llm_fast.ainvoke(extract_msgs)
 
@@ -237,8 +237,8 @@ async def seller_node(state: CarsChatState, config: RunnableConfig) -> dict:
         SystemMessage(content=system_prompt),
         HumanMessage(content=last_message),
     ]
-    if llm_router:
-        async for chunk in llm_router.astream_task(TaskType.SELLER, response_msgs):
+    if multi_llm:
+        async for chunk in multi_llm.astream_task(TaskType.SELLER, response_msgs):
             content = chunk.content if hasattr(chunk, "content") else str(chunk)
             streamed_text += content
     else:
