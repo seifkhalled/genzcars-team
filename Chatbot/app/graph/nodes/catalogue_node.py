@@ -26,8 +26,19 @@ look at the conversation history to determine what they are referring to.
 For example, if they previously mentioned "Mercedes" and now say
 "recommend one", "one" refers to a Mercedes.
 
-CRITICAL: Expand brand origin requests into the actual brand names:
+CRITICAL: When the user mentions a car origin/country/nationality
+(e.g., "American car", "Japanese car", "German car", "Korean car",
+"European car", "Italian car", "British car"), you MUST expand it into
+the actual brand names using this mapping:
 {brand_origins_prompt}
+
+For example:
+- "American car" → brands: ["Ford", "Chevrolet", "Dodge", "Jeep", "GMC", "Cadillac", "Lincoln", "Tesla"]
+- "Japanese car" → brands: ["Toyota", "Honda", "Nissan", "Mazda", "Suzuki", "Mitsubishi", "Subaru"]
+- "German car" → brands: ["BMW", "Mercedes", "Audi", "Volkswagen", "Porsche", "Opel"]
+
+NEVER leave brands empty when a nationality/origin is mentioned. Always expand
+to the full list of brands for that origin.
 
 Return ONLY valid JSON. No explanation, no markdown:
 {{
@@ -93,6 +104,17 @@ async def catalogue_node(state: CarsChatState, config: RunnableConfig) -> dict:
     exact = parsed.get("exact_request")
     is_specific = parsed.get("is_specific", False)
     request_label = parsed.get("request_label", last_message)
+
+    # Fallback: if the LLM didn't expand brands but accumulated preferences
+    # already hold preferred_brands (e.g. "American car" was expanded by the
+    # preference_extractor), use those so the catalogue check never misses a
+    # user intent that the LLM failed to expand on this turn.
+    if exact and not exact.get("brands"):
+        state_brands = state.get("preferences", {}).get("preferred_brands")
+        if state_brands and isinstance(state_brands, list):
+            exact["brands"] = state_brands
+            if not request_label or request_label == last_message:
+                request_label = f"{', '.join(state_brands)} cars"
 
     # Step 2: If specific request, query via MCP or direct DB
     if is_specific and exact and (pool or mcp_registry):

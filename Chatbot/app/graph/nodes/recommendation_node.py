@@ -68,6 +68,7 @@ async def recommendation_node(state: CarsChatState, config: RunnableConfig) -> d
     mcp_registry = config["configurable"].get("mcp_registry")
 
     body_types = [body_type] if body_type else None
+    brands_filter = brands_searched if brands_searched else None
 
     # Search via MCP or direct
     results = []
@@ -76,6 +77,7 @@ async def recommendation_node(state: CarsChatState, config: RunnableConfig) -> d
             mcp_results = await mcp_registry.call_tool("search_cars", {
                 "query": search_text,
                 "limit": RECOMMENDATION_LIMIT + 3,
+                "brands": brands_filter,
                 "body_types": body_types,
                 "year_min": year - 3 if year else None,
                 "year_max": year + 3 if year else None,
@@ -86,6 +88,21 @@ async def recommendation_node(state: CarsChatState, config: RunnableConfig) -> d
             logger.warning("MCP search_cars in recommendation_node failed, falling back: %s", e)
 
     if not results and qdrant_search:
+        vector = embedder.encode(search_text)
+        results = qdrant_search.hybrid_search(
+            query_text=search_text,
+            vector=vector,
+            limit=RECOMMENDATION_LIMIT + 3,
+            brands=brands_filter,
+            body_types=body_types,
+            year_min=year - 3 if year else None,
+            year_max=year + 3 if year else None,
+        )
+
+    # If a brand filter was applied but returned nothing, retry once without
+    # the brand filter so we can still surface genuine alternatives.
+    if not results and brands_filter and qdrant_search:
+        logger.info("No alternative listings matched brands %s; retrying without brand filter", brands_filter)
         vector = embedder.encode(search_text)
         results = qdrant_search.hybrid_search(
             query_text=search_text,
