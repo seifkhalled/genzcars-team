@@ -1,5 +1,5 @@
 from langgraph.graph import StateGraph, END
-from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from app.enums import NodeName
 from app.graph.state import CarsChatState
 from app.graph.nodes.preference_extractor import preference_extractor_node
@@ -18,7 +18,7 @@ def route_after_catalogue(state: CarsChatState) -> str:
     return state.get("next_node", NodeName.SEARCH)
 
 
-def build_graph() -> "CompiledGraph":
+def build_graph(checkpointer: BaseCheckpointSaver | None = None) -> "CompiledGraph":
     # ── LangGraph Node / Agent Reference ───────────────────────────────────
     # These node names appear as child run names in LangSmith traces,
     # enabling per-agent visibility (inputs, outputs, latency, errors).
@@ -82,5 +82,4 @@ def build_graph() -> "CompiledGraph":
 
     builder.add_edge(NodeName.RESPONDER, END)
 
-    checkpointer = MemorySaver()
     return builder.compile(checkpointer=checkpointer)

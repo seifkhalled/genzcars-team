@@ -9,6 +9,8 @@ from contextlib import asynccontextmanager
 import asyncpg
 from fastapi import FastAPI
 from qdrant_client import QdrantClient
+from psycopg_pool import AsyncConnectionPool
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
 from app.config import settings
 from app.core.llm import MultiLLM
@@ -146,11 +148,9 @@ async def lifespan(app: FastAPI):
     app.state.qdrant_search = qdrant_search
 
     llm = MultiLLM()
-    # Warmup: trigger LLM client construction (network handshake) at startup
-    asyncio.ensure_future(_warmup_llm(llm))
     app.state.llm_router = llm
-    app.state.llm_fast = llm.fast
-    app.state.llm_stream = llm.powerful or llm.fast
+    # Warmup: trigger LLM client construction in background (non-blocking)
+    asyncio.ensure_future(_warmup_llm(llm))
 
     app.state.web_search = WebSearch()
 
@@ -180,16 +180,36 @@ async def lifespan(app: FastAPI):
     app.state.mcp_registry = mcp_registry
     logger.info("MCP registry initialized with %d tools", len(mcp_registry.get_available_tools()))
 
-    app.state.graph = build_graph()
     app.state.sse_queues = {}
 
-    logger.info("Graph compiled with MemorySaver checkpointer")
+    # ── Durable checkpointer (Postgres) ──────────────────────────────────
+    # LangGraph state (incl. retrieved_ads / preferences / messages) now
+    # survives process restarts, replacing the in-memory reload path.
+    # A separate psycopg pool is used (the app's asyncpg pool is not
+    # compatible with AsyncPostgresSaver). The pool is kept open for the
+    # app lifetime and closed on shutdown.
+    dsn = settings.database_url.replace("postgresql+asyncpg://", "postgresql://")
+    checkpointer_pool = AsyncConnectionPool(dsn, open=False, min_size=1, max_size=5)
+    await checkpointer_pool.open()
+    checkpointer = AsyncPostgresSaver(checkpointer_pool)
+    await checkpointer.setup()
+    app.state.checkpointer = checkpointer
+    app.state.checkpointer_pool = checkpointer_pool
+
+    # Rebuild graph now that the checkpointer exists.
+    app.state.graph = build_graph(checkpointer=checkpointer)
+
+    logger.info("Graph compiled with AsyncPostgresSaver (Postgres) checkpointer")
 
     yield
 
     logger.info("Chatbot service shutting down...")
     if pool:
         await pool.close()
+    try:
+        await checkpointer_pool.close()
+    except Exception as e:
+        logger.warning("Error closing checkpointer pool: %s", e)
 
 
 app = FastAPI(

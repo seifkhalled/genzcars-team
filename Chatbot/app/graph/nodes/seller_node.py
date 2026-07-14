@@ -249,5 +249,4 @@ async def seller_node(state: CarsChatState, config: RunnableConfig) -> dict:
     return {
         "node_response": streamed_text,
         "price_analysis": price_analysis,
-        "retrieved_ads": [],
     }

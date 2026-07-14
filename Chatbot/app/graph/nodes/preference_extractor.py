@@ -306,21 +306,6 @@ async def preference_extractor_node(state: CarsChatState, config: RunnableConfig
         if excluded and positive_key in merged and isinstance(merged.get(positive_key), list):
             merged[positive_key] = [x for x in merged[positive_key] if x not in excluded]
 
-    if pool:
-        import asyncio
-        from app.db.queries import upsert_user_preferences
-        prefs_for_db = dict(merged)
-        prefs_for_db["intent_history"] = state.get("intent_history", [])
-        prefs_for_db["turn_count"] = state.get("turn_count", 0) + 1
-        asyncio.ensure_future(
-            upsert_user_preferences(
-                pool,
-                state["session_token"],
-                state.get("user_id"),
-                prefs_for_db,
-            )
-        )
-
     return {
         "turn_count": state.get("turn_count", 0) + 1,
         "preferences": merged,

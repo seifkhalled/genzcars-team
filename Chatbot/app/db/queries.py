@@ -120,14 +120,16 @@ async def insert_chat_message(
         )
 
 
-async def get_chat_history(pool: asyncpg.Pool, session_token: str) -> List[dict]:
+async def get_chat_history(pool: asyncpg.Pool, session_token: str, limit: int = 50) -> List[dict]:
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             "SELECT role, content, node_used, created_at FROM chat_messages "
-            "WHERE session_token = $1::VARCHAR ORDER BY created_at",
+            "WHERE session_token = $1::VARCHAR ORDER BY created_at DESC LIMIT $2",
             session_token,
+            limit,
         )
-        return [dict(r) for r in rows]
+        # Return in chronological order (most recent `limit` messages).
+        return [dict(r) for r in reversed(rows)]
 
 
 async def get_preferences(pool: asyncpg.Pool, session_token: str) -> dict | None:

@@ -99,7 +99,23 @@ async def responder_node(state: CarsChatState, config: RunnableConfig) -> dict:
 
     # 7. Background persistence tasks
     if pool:
-        from app.db.queries import insert_chat_message
+        from app.db.queries import insert_chat_message, upsert_user_preferences
+
+        # Persist final merged preferences (post-graph, so catalogue/seller
+        # mutations are captured) for the /history endpoint. The responder is
+        # on every path to END, so this runs for every completed turn.
+        asyncio.ensure_future(
+            upsert_user_preferences(
+                pool,
+                session_token,
+                state.get("user_id"),
+                {
+                    **(state.get("preferences") or {}),
+                    "intent_history": state.get("intent_history", []),
+                    "turn_count": state.get("turn_count", 0),
+                },
+            )
+        )
 
         # Find referenced ad IDs
         ref_ids = []

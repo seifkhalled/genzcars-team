@@ -43,17 +43,54 @@ async def chat_message(request: ChatRequest, req: Request):
                 yield f"data: {json.dumps({'type': 'error', 'content': error_msg})}\n\n"
                 yield f"data: {json.dumps({'type': 'done', 'content': None})}\n\n"
                 return
-            # --- History reload ---
-            messages_history = []
-            preferences = {}
-            turn_count = 0
-            intent_history = []
-            last_shown_ads = []
+            # ── Checkpoint-aware state assembly ───────────────────────────
+            # The graph's state (messages, preferences, retrieved_ads, ...) is
+            # persisted in Postgres via AsyncPostgresSaver. If a checkpoint
+            # exists for this thread, resume from it and pass ONLY the new
+            # user turn (LangGraph appends it via the messages reducer).
+            # Otherwise fall back to rebuilding state from Postgres — this
+            # covers brand-new sessions and pre-migration sessions that have
+            # DB history but no LangGraph checkpoint yet.
             pool = getattr(app.state, "pool", None)
-            if pool and session_token:
+            graph = app.state.graph
+
+            config = {
+                "callbacks": [cost_tracker],
+                "run_name": f"deals-chatbot-{settings.environment}",
+                "metadata": {
+                    "session_id": session_token,
+                    "user_id": request.user_id,
+                    "conversation_id": session_token,
+                    "environment": settings.environment,
+                },
+                "tags": ["langgraph", "chat", f"env:{settings.environment}"],
+                "configurable": {
+                    "thread_id": request.session_token,
+                    "llm_router": getattr(app.state, "llm_router", None),
+                    "llm_fast": app.state.llm_router.fast if hasattr(app.state, "llm_router") else None,
+                    "llm_stream": (app.state.llm_router.powerful or app.state.llm_router.fast) if hasattr(app.state, "llm_router") else None,
+                    "cost_tracker": cost_tracker,
+                    "embedder": app.state.embedder,
+                    "qdrant_search": app.state.qdrant_search,
+                    "db_pool": pool,
+                    "sse_queue": queue,
+                    "session_start": getattr(app.state, "session_start", None),
+                    "web_search": getattr(app.state, "web_search", None),
+                    "mcp_registry": getattr(app.state, "mcp_registry", None),
+                }
+            }
+
+            existing = await graph.aget_state({"configurable": {"thread_id": request.session_token}})
+            has_checkpoint = existing is not None and bool(getattr(existing, "values", None))
+
+            messages_history: list = []
+            preferences: dict = {}
+            turn_count = 0
+            intent_history: list = []
+
+            if not has_checkpoint and pool and session_token:
                 try:
-                    from app.db.queries import get_chat_history, get_preferences, get_last_shown_ads
-                    # Quick existence check before full reload
+                    from app.db.queries import get_chat_history, get_preferences
                     async with pool.acquire() as conn:
                         has_session = await conn.fetchval(
                             "SELECT 1 FROM chat_sessions WHERE session_token = $1::VARCHAR",
@@ -84,54 +121,34 @@ async def chat_message(request: ChatRequest, req: Request):
                             preferences = {k: prefs_row.get(k) for k in pref_keys if k in prefs_row}
                             intent_history = prefs_row.get("intent_history", [])
                             turn_count = prefs_row.get("turn_count", 0)
-                        last_shown_ads = await get_last_shown_ads(pool, session_token)
                 except Exception as e:
                     logger.warning("History/preference reload failed: %s: %s", type(e).__name__, str(e)[:200])
-            # --- End history reload ---
 
-            config = {
-                "callbacks": [cost_tracker],
-                "run_name": f"deals-chatbot-{settings.environment}",
-                "metadata": {
-                    "session_id": session_token,
+            if has_checkpoint:
+                input_state = {
+                    "messages": [HumanMessage(content=request.message)],
+                    "session_token": request.session_token,
                     "user_id": request.user_id,
-                    "conversation_id": session_token,
-                    "environment": settings.environment,
-                },
-                "tags": ["langgraph", "chat", f"env:{settings.environment}"],
-                "configurable": {
-                    "thread_id": request.session_token,
-                    "llm_router": getattr(app.state, "llm_router", None),
-                    "llm_fast": app.state.llm_fast,
-                    "llm_stream": app.state.llm_stream,
-                    "cost_tracker": cost_tracker,
-                    "embedder": app.state.embedder,
-                    "qdrant_search": app.state.qdrant_search,
-                    "db_pool": pool,
-                    "sse_queue": queue,
-                    "session_start": getattr(app.state, "session_start", None),
-                    "web_search": getattr(app.state, "web_search", None),
-                    "mcp_registry": getattr(app.state, "mcp_registry", None),
+                    "context_ad_id": request.context_ad_id,
                 }
-            }
-
-            input_state = {
-                "messages": messages_history + [HumanMessage(content=request.message)],
-                "session_token": request.session_token,
-                "user_id": request.user_id,
-                "context_ad_id": request.context_ad_id,
-                "preferences": preferences,
-                "next_node": "",
-                "intent": "",
-                "node_response": "",
-                "retrieved_ads": [],
-                "similar_ads": [],
-                "price_analysis": None,
-                "catalogue_check": None,
-                "recommendations": [],
-                "turn_count": turn_count,
-                "intent_history": intent_history,
-            }
+            else:
+                input_state = {
+                    "messages": messages_history + [HumanMessage(content=request.message)],
+                    "session_token": request.session_token,
+                    "user_id": request.user_id,
+                    "context_ad_id": request.context_ad_id,
+                    "preferences": preferences,
+                    "next_node": "",
+                    "intent": "",
+                    "node_response": "",
+                    "retrieved_ads": [],
+                    "similar_ads": [],
+                    "price_analysis": None,
+                    "catalogue_check": None,
+                    "recommendations": [],
+                    "turn_count": turn_count,
+                    "intent_history": intent_history,
+                }
 
             graph = app.state.graph
 
@@ -182,10 +199,6 @@ async def chat_message(request: ChatRequest, req: Request):
                     pass
             else:
                 await run_task
-
-            if pool and current_ads:
-                from app.db.queries import save_last_shown_ads
-                asyncio.ensure_future(save_last_shown_ads(pool, session_token, current_ads))
 
             usage_summary = cost_tracker.summary()
             if usage_summary["total_llm_calls"] > 0:
