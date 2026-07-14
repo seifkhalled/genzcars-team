@@ -63,8 +63,7 @@ services:
       retries: 3
       start_period: 20s
     depends_on:
-      backend:
-        condition: service_healthy
+      - backend
 
   # ── COMPARISON ANALYSIS ────────────────────────────────────────
   comparison:
@@ -87,10 +86,8 @@ services:
       - /app/__pycache__
     command: uvicorn app.main:app --host 0.0.0.0 --port 8002 --reload
     depends_on:
-      redis:
-        condition: service_started
-      backend:
-        condition: service_healthy
+      - redis
+      - backend
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
       interval: 30s
@@ -119,8 +116,7 @@ services:
       - /app/node_modules
       - /app/.next
     depends_on:
-      backend:
-        condition: service_healthy
+      - backend
 
   # ── NGINX — reverse proxy ──────────────────────────────────────
   nginx:
@@ -156,7 +152,8 @@ services:
 
   # ── PROMETHEUS — metrics scraper ───────────────────────────────
   prometheus:
-    image: prom/prometheus:latest
+    profiles: ["monitoring"]
+    image: prom/prometheus:v2.53.0
     container_name: cars_prometheus
     restart: unless-stopped
     volumes:
@@ -172,7 +169,8 @@ services:
 
   # ── GRAFANA — dashboards ───────────────────────────────────────
   grafana:
-    image: grafana/grafana:latest
+    profiles: ["monitoring"]
+    image: grafana/grafana:11.1.0
     container_name: cars_grafana
     restart: unless-stopped
     volumes:
@@ -187,7 +185,8 @@ services:
 
   # ── LOKI — log aggregation ─────────────────────────────────────
   loki:
-    image: grafana/loki:latest
+    profiles: ["monitoring"]
+    image: grafana/loki:3.0.0
     container_name: cars_loki
     restart: unless-stopped
     ports:
@@ -198,7 +197,8 @@ services:
 
   # ── PROMTAIL — log collector ───────────────────────────────────
   promtail:
-    image: grafana/promtail:latest
+    profiles: ["monitoring"]
+    image: grafana/promtail:3.0.0
     container_name: cars_promtail
     restart: unless-stopped
     volumes:
