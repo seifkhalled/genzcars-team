@@ -14,6 +14,18 @@ class NodeName(str, Enum):
     RESPONDER = "responder_node"
 
 
+# Single source of truth for the nodes the router may dispatch to. Both the
+# conditional-edge map (builder.py) and the router's validation set (router.py)
+# are derived from this, so they cannot drift apart when a specialist is added.
+ROUTABLE_NODES = frozenset({
+    NodeName.CATALOGUE,
+    NodeName.ADVISOR,
+    NodeName.SELLER,
+    NodeName.GUIDE,
+    NodeName.GENERAL,
+})
+
+
 class TaskType(str, Enum):
     ROUTER = "router"
     PREFERENCE_EXTRACTOR = "preference_extractor"

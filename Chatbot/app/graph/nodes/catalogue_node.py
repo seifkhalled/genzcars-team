@@ -2,7 +2,7 @@ import json
 import logging
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
-from app.enums import TaskType
+from app.enums import TaskType, NodeName
 from app.graph.state import CarsChatState
 from app.data.brand_origins import format_brand_origins_prompt
 
@@ -131,7 +131,7 @@ async def catalogue_node(state: CarsChatState, config: RunnableConfig) -> dict:
                     "requested": request_label,
                     "available_brands": available_brands,
                 },
-                "next_node": "search_node",
+                "next_node": NodeName.SEARCH,
             }
         else:
             # Not found — route to recommendation
@@ -144,7 +144,7 @@ async def catalogue_node(state: CarsChatState, config: RunnableConfig) -> dict:
                     "year": year,
                     "body_type": body_type,
                 },
-                "next_node": "recommendation_node",
+                "next_node": NodeName.RECOMMENDATION,
             }
 
     # General search — route directly to search_node
@@ -154,5 +154,5 @@ async def catalogue_node(state: CarsChatState, config: RunnableConfig) -> dict:
             "requested": request_label,
             "available_brands": [],
         },
-        "next_node": "search_node",
+        "next_node": NodeName.SEARCH,
     }

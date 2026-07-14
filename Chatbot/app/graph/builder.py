@@ -1,6 +1,6 @@
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.base import BaseCheckpointSaver
-from app.enums import NodeName
+from app.enums import NodeName, ROUTABLE_NODES
 from app.graph.state import CarsChatState
 from app.graph.nodes.preference_extractor import preference_extractor_node
 from app.graph.router import router_node
@@ -59,13 +59,7 @@ def build_graph(checkpointer: BaseCheckpointSaver | None = None) -> "CompiledGra
     builder.add_conditional_edges(
         NodeName.ROUTER,
         lambda state: state["next_node"],
-        {
-            NodeName.CATALOGUE: NodeName.CATALOGUE,
-            NodeName.ADVISOR: NodeName.ADVISOR,
-            NodeName.SELLER: NodeName.SELLER,
-            NodeName.GUIDE: NodeName.GUIDE,
-            NodeName.GENERAL: NodeName.GENERAL,
-        }
+        {n: n for n in ROUTABLE_NODES},
     )
 
     builder.add_conditional_edges(

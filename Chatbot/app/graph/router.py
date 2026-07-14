@@ -1,8 +1,11 @@
 import json
+import logging
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
-from app.enums import NodeName, TaskType
+from app.enums import NodeName, TaskType, ROUTABLE_NODES
 from app.graph.state import CarsChatState
+
+logger = logging.getLogger(__name__)
 
 
 ROUTER_SYSTEM = """You are the routing brain of a car marketplace AI assistant.
@@ -82,20 +85,26 @@ async def router_node(state: CarsChatState, config: RunnableConfig) -> dict:
             parsed = json.loads(raw)
             candidate = parsed.get("next_node", "")
             if isinstance(candidate, str):
-                node_name = candidate.strip().lower()
+                cand = candidate.strip().lower()
+                if any(n.value == cand for n in ROUTABLE_NODES):
+                    node_name = cand
         except json.JSONDecodeError:
             pass
 
-    # Fallback: search for a valid node name anywhere in the response
+    # Fallback: search for a routable node name anywhere in the response
     if not node_name:
         raw_lower = raw.lower()
-        valid_nodes = {NodeName.CATALOGUE, NodeName.ADVISOR, NodeName.SELLER, NodeName.GUIDE, NodeName.GENERAL}
-        for n in valid_nodes:
+        for n in ROUTABLE_NODES:
             if n.value in raw_lower:
                 node_name = n.value
                 break
 
     if not node_name:
+        if raw:
+            logger.warning(
+                "Router LLM returned no routable intent (output=%r); defaulting to general_node",
+                raw[:200],
+            )
         node_name = NodeName.GENERAL
 
     intent_history = state.get("intent_history", []) + [node_name]
