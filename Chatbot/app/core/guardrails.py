@@ -47,16 +47,16 @@ def validate_input(text: str) -> tuple[bool, str]:
     return True, ""
 
 
-def validate_output(text: str) -> bool:
-    """Post-process LLM output to catch obvious issues."""
+def validate_output(text: str) -> str:
+    """Post-process LLM output: truncate oversized responses and redact
+    phone numbers that may have been hallucinated."""
     if len(text) > _MAX_OUTPUT_LENGTH:
         logger.warning("LLM output truncated (len=%d)", len(text))
+        text = text[:_MAX_OUTPUT_LENGTH].rsplit(" ", 1)[0] + "\n\n(…truncated)"
 
-    sensitive = _SENSITIVE_PATTERNS.findall(text)
-    if sensitive:
-        logger.warning("LLM output may contain sensitive data: %d matches", len(sensitive))
+    text = _SENSITIVE_PATTERNS.sub("[REDACTED]", text)
 
-    return True
+    return text
 
 
 def is_car_related(text: str) -> bool:

@@ -51,7 +51,7 @@ async def responder_node(state: CarsChatState, config: RunnableConfig) -> dict:
     sse_queue = config["configurable"].get("sse_queue")
     session_token = state.get("session_token", "")
     node_response = _strip_ad_enumerations(_clean_node_response(state.get("node_response", "")))
-    validate_output(node_response)
+    node_response = validate_output(node_response)
     retrieved = state.get("retrieved_ads", [])
     intent = state.get("intent", "")
 
