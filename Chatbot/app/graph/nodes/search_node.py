@@ -9,6 +9,7 @@ from app.enums import TaskType
 from app.graph.state import CarsChatState
 from app.core.hallucination_guard import verify_results
 from app.data.car_features import format_expansions_prompt
+from app.data.brand_origins import detect_origin_brands, detect_origin_label, format_brand_origins_prompt
 from app.core.ai_metrics import search_quality_total
 from app.data.constants import (
     SEARCH_QUALITY_TOP_SCORE_MIN,
@@ -37,26 +38,33 @@ Rules:
    semantic matching against listing descriptions.
 4. CRITICAL — body_type keywords (sedan, SUV, hatchback, coupe, convertible,
    pickup, van, crossover, station wagon, etc.) MUST be extracted as
-   filters.body_types list items, NEVER placed in search_query. Only body_type
-   values that appear in the user's message go in filters.body_types;
+   body_types list items, NEVER placed in search_query. Only body_type
+   values that appear in the user's message go in body_types;
    if none mentioned, use [].
 5. Expand colloquial car terms in search_query:
 {expansions_prompt}
 6. If the user asks about features typically in descriptions (not metadata),
    use a broader search query and leave filters minimal/null.
+7. CRITICAL: When the user mentions a car origin/country/nationality
+   (e.g., "American car", "German car", "Japanese car"), do NOT put
+   the nationality word into brand. Nationality words are NOT
+   brand names. Use this mapping to expand to actual brands:
+{brand_origins_prompt}
+   For example, "German car" → brands: ["BMW", "Mercedes", "Audi", "Volkswagen", "Porsche", "Opel"]
+   and "American car" → brands: ["Ford", "Chevrolet", "Dodge", "Jeep", "GMC", "Cadillac", "Lincoln", "Tesla"]
+   Use the "brands" key (list of strings) for nationality expansion.
+   Use "brand" (singular string) only for a single specific brand (e.g. "BMW", "Toyota").
 
-Return ONLY valid JSON:
+Return ONLY valid JSON (flat structure — no nested "filters" wrapper):
 {{
   "search_query": "detailed expanded search query for semantic matching",
-  "filters": {{
-    "price_min": null,
-    "price_max": null,
-    "brand": null,
-    "city": null,
-    "fuel_type": null,
-    "transmission": null,
-    "body_types": []
-  }}
+  "price_min": null,
+  "price_max": null,
+  "brand": null,
+  "city": null,
+  "fuel_type": null,
+  "transmission": null,
+  "body_types": []
 }}
 
 User message: "{message}"
@@ -80,6 +88,14 @@ CRITICAL RULES:
 6. Cities are ALWAYS Egyptian cities (e.g., Cairo, Alexandria, Giza,
    New Cairo, Sheikh Zayed, Mansoura). NEVER use non-Egyptian cities or
    states (e.g., never New York, California, Dubai, London).
+7. When the user asked for a specific nationality/origin (e.g., "American
+   car", "German car"), you MUST mention that origin in your response
+   and list ALL brands found that belong to that origin. NEVER say
+   "no such brands" when matching brands are present in the results.
+8. NEVER describe brands that are NOT in the results summary — only
+   describe what is actually shown in the cards.
+
+{origin_context}
 
 Found cars summary:
 {cars_summary}
@@ -135,6 +151,12 @@ def _prefs_to_filters_dict(prefs: dict) -> dict:
     for pref_key, filter_key in mapping.items():
         pref_val = prefs.get(pref_key)
         if pref_val:
+            # Coerce price fields to float (LLM may return strings)
+            if filter_key in ("price_min", "price_max"):
+                try:
+                    pref_val = float(pref_val)
+                except (TypeError, ValueError):
+                    continue
             if filter_key in merged:
                 existing = merged[filter_key]
                 if isinstance(existing, list):
@@ -188,6 +210,7 @@ async def search_node(state: CarsChatState, config: RunnableConfig) -> dict:
         message=last_message,
         conversation_history=conversation_history,
         expansions_prompt=format_expansions_prompt(),
+        brand_origins_prompt=format_brand_origins_prompt(),
     ))
     if multi_llm:
         query_response = await multi_llm.ainvoke_task(TaskType.SEARCH, [system_msg, HumanMessage(content=last_message)])
@@ -216,6 +239,34 @@ async def search_node(state: CarsChatState, config: RunnableConfig) -> dict:
     for key, val in prefs_override.items():
         if val is not None and filters.get(key) is None:
             filters[key] = val
+
+    # ── Deterministic origin→brand expansion (safety net) ──────────────
+    # The LLM may fail to expand "american" / "german" into brand names,
+    # or may put the nationality word itself into filters.brand.  Detect
+    # origin keywords in the message *deterministically* and FORCE the
+    # brands filter — this is the single source of truth.
+    origin_brands = detect_origin_brands(last_message)
+    origin_label = detect_origin_label(last_message)
+    if origin_brands:
+        filters["brands"] = origin_brands
+        # Remove any non-brand string the LLM put in filters.brand
+        # (e.g. "american", "german", "usa") — those are not Qdrant brands.
+        if filters.get("brand"):
+            filters.pop("brand", None)
+    else:
+        # No origin detected — still clean up invalid brand strings that
+        # aren't real car brands (nationality words, adjectives, etc.)
+        brand_val = filters.get("brand")
+        if brand_val and isinstance(brand_val, str):
+            # Quick heuristic: if the brand is a known origin word, remove it
+            origin_words = {"american", "german", "japanese", "korean",
+                            "european", "italian", "british", "chinese",
+                            "french", "swedish", "usa", "uk", "germany",
+                            "japan", "korea", "italy", "britain", "france"}
+            if brand_val.lower() in origin_words:
+                logger.info("Removing non-brand origin word '%s' from brand filter", brand_val)
+                filters.pop("brand", None)
+                brand_val = None
 
     brand_filter = filters.get("brand")
     body_type_filter = filters.get("body_types")
@@ -308,6 +359,52 @@ async def search_node(state: CarsChatState, config: RunnableConfig) -> dict:
             results = merge_dedup_results(broader_results, results, max_count=MERGE_MAX_COUNT)
         else:
             results = merge_dedup_results(results, broader_results, max_count=MERGE_MAX_COUNT)
+
+    # Step 3b: Enforce brand constraint on final results
+    # Qdrant hybrid search (BM25+vector fusion) may return semantically
+    # similar cars from other brands when the vector similarity outweighs
+    # the payload filter.  Hard-filter here as a safety net so the user
+    # never sees cars from a brand they didn't ask for.
+    allowed_brands: set[str] = set()
+    if brand_filter and isinstance(brand_filter, str):
+        allowed_brands.add(brand_filter.lower())
+    brands_list = filters.get("brands")
+    if isinstance(brands_list, list):
+        allowed_brands.update(b.lower() for b in brands_list if isinstance(b, str))
+    if allowed_brands:
+        pre_count = len(results)
+        results = [r for r in results if r.get("brand", "").lower() in allowed_brands]
+        if len(results) < pre_count:
+            logger.info(
+                "Brand enforcement: kept %d/%d results matching %s",
+                len(results), pre_count, allowed_brands,
+            )
+
+    # Step 3c: Enforce price constraint on final results
+    # Same safety-net approach as brands — Qdrant may return items that
+    # slip through the payload range filter during fusion ranking.
+    price_max = filters.get("price_max")
+    price_min = filters.get("price_min")
+    if price_max is not None or price_min is not None:
+        pre_count = len(results)
+        filtered = []
+        for r in results:
+            r_price = r.get("price", 0)
+            try:
+                r_price = float(r_price)
+            except (TypeError, ValueError):
+                r_price = 0
+            if price_min is not None and r_price < float(price_min):
+                continue
+            if price_max is not None and r_price > float(price_max):
+                continue
+            filtered.append(r)
+        results = filtered
+        if len(results) < pre_count:
+            logger.info(
+                "Price enforcement: kept %d/%d results (range %s–%s)",
+                len(results), pre_count, price_min, price_max,
+            )
 
     # Step 4: Fetch images and build validated ad list
     ad_ids = []
@@ -411,13 +508,33 @@ async def search_node(state: CarsChatState, config: RunnableConfig) -> dict:
             filter_parts.append(f"transmission: {filters['transmission']}")
         if filter_parts:
             streamed_text = f"I searched {', '.join(filter_parts)} but couldn't find any matching listings right now. Try adjusting your filters or check back later — new ads are added regularly."
+        elif origin_label:
+            streamed_text = f"We don't currently have any {origin_label} cars listed. Try checking back later — new ads are added regularly."
         else:
             streamed_text = "I searched the listings but couldn't find any cars matching your criteria. Try adjusting your filters or checking back later — new ads are added regularly."
     else:
+        # Build origin context for the response LLM
+        origin_context = ""
+        if origin_label and origin_brands:
+            # Filter result brands to only those matching the requested origin
+            origin_result_brands = [
+                b for b in result_brands if b in origin_brands
+            ]
+            non_origin_result_brands = [
+                b for b in result_brands if b not in origin_brands
+            ]
+            origin_context = (
+                f"The user asked for {origin_label} cars. The requested origin brands "
+                f"found in results are: {', '.join(sorted(origin_result_brands)) or 'none'}. "
+                f"All displayed brands: {', '.join(sorted(result_brands))}. "
+                f"Focus your response on the {origin_label} brands found."
+            )
+
         response_msgs = [
             SystemMessage(content=RESPONSE_SYSTEM.format(
                 message=last_message,
                 cars_summary=cars_summary,
+                origin_context=origin_context,
             )),
             HumanMessage(content=last_message),
         ]

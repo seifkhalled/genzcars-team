@@ -20,6 +20,12 @@ Available agents and when to use each:
   conversation context. If the user previously asked about BMWs and now says
   "send me one" or "show me", the intent is still catalogue_node — they want
   to see BMW listings.
+  CRITICAL: Questions about what brands we HAVE/STOCK/OFFER/SELL — including
+  nationality-based questions like "what American brands do you have?",
+  "what German cars are available?", "do you have Japanese cars?" — are
+  ALWAYS catalogue_node. The user wants to see available listings, not
+  learn general car knowledge. Also route here when the user asks to
+  recommend a car of any kind (by origin, budget, body type, etc.).
 - advisor_node: user is asking about a SPECIFIC car already in the conversation
   or on the current page. Questions like "is this a good deal?", "what are the
   problems with this car?", "should I buy it?" when a car is in context.
@@ -37,6 +43,18 @@ Available agents and when to use each:
 - general_node: general car knowledge, reliability questions, maintenance advice,
   insurance, market trends, news, greetings, unclear intent, or anything that
   doesn't fit the above.
+
+EXAMPLES:
+- "recommend me an american car" → catalogue_node (wants to see listings)
+- "what german brands do you have?" → catalogue_node (wants to browse available brands)
+- "do you have any Japanese cars?" → catalogue_node (wants to see listings)
+- "what's the best SUV under 500k?" → catalogue_node (wants to find cars)
+- "show me Toyota Corolla" → catalogue_node (wants specific listing)
+- "is the BMW 318 a reliable car?" → advisor_node (evaluating a specific car)
+- "I want to sell my Honda Civic" → seller_node (selling intent)
+- "how do I post an ad on the website?" → guide_node (website help)
+- "what's the difference between gasoline and diesel?" → general_node (general knowledge)
+- "hello" → general_node (greeting)
 
 Conversation so far:
 {message_history}

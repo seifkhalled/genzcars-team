@@ -4,7 +4,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 from app.enums import TaskType, NodeName
 from app.graph.state import CarsChatState
-from app.data.brand_origins import format_brand_origins_prompt
+from app.data.brand_origins import format_brand_origins_prompt, detect_origin_brands, detect_origin_label
 
 logger = logging.getLogger(__name__)
 
@@ -105,16 +105,34 @@ async def catalogue_node(state: CarsChatState, config: RunnableConfig) -> dict:
     is_specific = parsed.get("is_specific", False)
     request_label = parsed.get("request_label", last_message)
 
-    # Fallback: if the LLM didn't expand brands but accumulated preferences
-    # already hold preferred_brands (e.g. "American car" was expanded by the
-    # preference_extractor), use those so the catalogue check never misses a
-    # user intent that the LLM failed to expand on this turn.
-    if exact and not exact.get("brands"):
+    # Source 3 (deterministic): detect origin keywords directly in the message.
+    # This is the safety net — never depends on the LLM expanding correctly.
+    origin_brands = detect_origin_brands(last_message)
+    origin_label = detect_origin_label(last_message)
+
+    if exact is None:
+        exact = {}
+
+    # Merge origin brands (deterministic) with whatever the LLM produced.
+    # Origin brands always win when present — the LLM may have failed to
+    # expand or may have expanded to a wrong/incomplete list.
+    if origin_brands:
+        existing_brands = exact.get("brands") or []
+        merged_brands = list(dict.fromkeys(origin_brands + existing_brands))
+        exact["brands"] = merged_brands
+        is_specific = True
+        if not request_label or request_label == last_message:
+            request_label = f"{origin_label} cars" if origin_label else f"{', '.join(merged_brands[:3])} cars"
+    elif not exact.get("brands"):
+        # Fallback 2: if the LLM didn't expand brands but accumulated
+        # preferences already hold preferred_brands (e.g. "American car"
+        # was expanded by the preference_extractor), use those.
         state_brands = state.get("preferences", {}).get("preferred_brands")
         if state_brands and isinstance(state_brands, list):
             exact["brands"] = state_brands
+            is_specific = True
             if not request_label or request_label == last_message:
-                request_label = f"{', '.join(state_brands)} cars"
+                request_label = f"{', '.join(state_brands[:3])} cars"
 
     # Step 2: If specific request, query via MCP or direct DB
     if is_specific and exact and (pool or mcp_registry):
@@ -149,22 +167,29 @@ async def catalogue_node(state: CarsChatState, config: RunnableConfig) -> dict:
             # Found exact matches — write confirmed brands back to preferences
             # so the brand context survives to subsequent turns even when the
             # preference_extractor's fire-and-forget upsert hasn't completed.
+            # NOTE: Never narrow preferred_brands to only confirmed brands —
+            # the user may have requested an origin (e.g. "German car") that
+            # maps to many brands, only some of which have active listings.
+            # We ADD confirmed brands but preserve the full list.
             confirmed_brands = [b["brand"] for b in available_brands]
             updated_prefs = dict(state.get("preferences", {}))
             existing = updated_prefs.get("preferred_brands")
-            if existing:
+            if existing and isinstance(existing, list):
                 merged = list(existing)
                 for b in confirmed_brands:
                     if b not in merged:
                         merged.append(b)
                 updated_prefs["preferred_brands"] = merged
-            else:
+            elif not existing:
+                # Only set confirmed brands if there were NO existing
+                # preferred_brands at all (brand-new session with no history).
                 updated_prefs["preferred_brands"] = confirmed_brands
             return {
                 "catalogue_check": {
                     "available": True,
                     "requested": request_label,
                     "available_brands": available_brands,
+                    "requested_origin": origin_label,
                 },
                 "preferences": updated_prefs,
                 "next_node": NodeName.SEARCH,
@@ -179,6 +204,7 @@ async def catalogue_node(state: CarsChatState, config: RunnableConfig) -> dict:
                     "model": model,
                     "year": year,
                     "body_type": body_type,
+                    "requested_origin": origin_label,
                 },
                 "next_node": NodeName.RECOMMENDATION,
             }
@@ -189,6 +215,7 @@ async def catalogue_node(state: CarsChatState, config: RunnableConfig) -> dict:
             "available": True,
             "requested": request_label,
             "available_brands": [],
+            "requested_origin": origin_label,
         },
         "next_node": NodeName.SEARCH,
     }

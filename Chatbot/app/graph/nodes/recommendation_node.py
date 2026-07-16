@@ -4,11 +4,13 @@ from langchain_core.runnables import RunnableConfig
 from app.enums import TaskType
 from app.graph.state import CarsChatState
 from app.data.constants import RECOMMENDATION_LIMIT
+from app.data.brand_origins import detect_origin_brands, detect_origin_label
 
 logger = logging.getLogger(__name__)
 
-RECOMMENDATION_SYSTEM = """The user asked for a specific car that is NOT available
-in our catalogue. You need to recommend alternative cars that are actually in stock.
+RECOMMENDATION_SYSTEM = """The user asked for a specific car/brand/origin that is NOT
+available in our catalogue. You need to recommend alternative cars that are
+actually in stock.
 
 CRITICAL MARKET CONTEXT — This is an Egyptian marketplace:
 - Currency is ALWAYS EGP (Egyptian Pounds). NEVER use USD, dollars, $, or
@@ -18,6 +20,8 @@ CRITICAL MARKET CONTEXT — This is an Egyptian marketplace:
 
 They wanted: {requested_description}
 What they searched for: brands={brands_searched}, model={model}, year={year}, body_type={body_type}
+
+{origin_context}
 
 Available alternatives found:
 {alternatives_summary}
@@ -52,6 +56,12 @@ async def recommendation_node(state: CarsChatState, config: RunnableConfig) -> d
     year = catalogue.get("year")
     body_type = catalogue.get("body_type")
     request_label = catalogue.get("requested", last_message)
+    origin_label = catalogue.get("requested_origin")
+
+    # Deterministic origin detection — the single source of truth
+    origin_brands = detect_origin_brands(last_message)
+    if not origin_label:
+        origin_label = detect_origin_label(last_message)
 
     # Build relaxed search query
     query_parts = []
@@ -68,7 +78,8 @@ async def recommendation_node(state: CarsChatState, config: RunnableConfig) -> d
     mcp_registry = config["configurable"].get("mcp_registry")
 
     body_types = [body_type] if body_type else None
-    brands_filter = brands_searched if brands_searched else None
+    # Strict: use origin brands if detected, otherwise fall back to catalogue brands
+    brands_filter = origin_brands if origin_brands else (brands_searched if brands_searched else None)
 
     # Search via MCP or direct
     results = []
@@ -99,10 +110,12 @@ async def recommendation_node(state: CarsChatState, config: RunnableConfig) -> d
             year_max=year + 3 if year else None,
         )
 
-    # If a brand filter was applied but returned nothing, retry once without
-    # the brand filter so we can still surface genuine alternatives.
+    # Strict: only retry WITHOUT brand filter if we genuinely have zero
+    # results AND the brand filter was set. This ensures we always try
+    # the requested origin first, and only fall back when truly empty.
+    used_fallback = False
     if not results and brands_filter and qdrant_search:
-        logger.info("No alternative listings matched brands %s; retrying without brand filter", brands_filter)
+        logger.info("No listings matched brands %s; retrying without brand filter", brands_filter)
         vector = embedder.encode(search_text)
         results = qdrant_search.hybrid_search(
             query_text=search_text,
@@ -112,10 +125,24 @@ async def recommendation_node(state: CarsChatState, config: RunnableConfig) -> d
             year_min=year - 3 if year else None,
             year_max=year + 3 if year else None,
         )
+        used_fallback = True
 
     # Build alternative ads list
     from app.core.hallucination_guard import verify_results
     results = verify_results(results)
+
+    # Enforce brand constraint when the brand filter was applied
+    # (skip when used_fallback=True because we intentionally dropped the filter)
+    if not used_fallback and brands_filter:
+        allowed = {b.lower() for b in brands_filter if isinstance(b, str)}
+        if allowed:
+            pre_count = len(results)
+            results = [r for r in results if r.get("brand", "").lower() in allowed]
+            if len(results) < pre_count:
+                logger.info(
+                    "Recommendation brand enforcement: kept %d/%d results matching %s",
+                    len(results), pre_count, allowed,
+                )
 
     images_map = {}
     if results:
@@ -191,8 +218,33 @@ async def recommendation_node(state: CarsChatState, config: RunnableConfig) -> d
 
     streamed_text = ""
     if not ads:
-        streamed_text = f"I checked our catalogue but {request_label or 'the car you requested'} is not currently available, and I couldn't find any alternative listings matching your preferences. Try a different brand or model, or check back later."
+        if origin_label:
+            streamed_text = f"We don't currently have any {origin_label} cars listed in our catalogue. Try checking back later — new ads are added regularly."
+        else:
+            streamed_text = f"I checked our catalogue but {request_label or 'the car you requested'} is not currently available, and I couldn't find any alternative listings matching your preferences. Try a different brand or model, or check back later."
     else:
+        # Build origin context for the response LLM
+        origin_context = ""
+        if origin_label and origin_brands:
+            origin_result_brands = [
+                a["brand"] for a in ads if a.get("brand") in origin_brands
+            ]
+            non_origin_brands = [
+                a["brand"] for a in ads if a.get("brand") not in origin_brands
+            ]
+            if origin_result_brands:
+                origin_context = (
+                    f"The user asked for {origin_label} cars. The {origin_label} brands "
+                    f"found in results are: {', '.join(sorted(set(origin_result_brands)))}. "
+                    f"If these {origin_label} brands are present, describe them as the main "
+                    f"recommendation. The following non-{origin_label} brands are also shown "
+                    f"as alternatives: {', '.join(sorted(set(non_origin_brands))) or 'none'}."
+                )
+            elif used_fallback:
+                origin_context = (
+                    f"The user asked for {origin_label} cars, but none are currently "
+                    f"available. The alternatives shown are from other brands."
+                )
         response_msgs = [
             SystemMessage(content=RECOMMENDATION_SYSTEM.format(
                 requested_description=request_label,
@@ -201,6 +253,7 @@ async def recommendation_node(state: CarsChatState, config: RunnableConfig) -> d
                 year=year or "any",
                 body_type=body_type or "any",
                 alternatives_summary=alternatives_summary,
+                origin_context=origin_context,
             )),
             HumanMessage(content=last_message),
         ]

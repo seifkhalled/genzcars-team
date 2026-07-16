@@ -15,8 +15,13 @@ export function useChat() {
     addMessage, appendToken, setStreaming, setSessionToken, clearMessages,
   } = useChatStore()
 
-  const { start, stop } = useSSE()
+  const { start, stop: sseStop } = useSSE()
   const { speak: speakTTS, stop: stopTTS } = useTTS()
+
+  const stop = useCallback(() => {
+    sseStop()
+    setStreaming(false)
+  }, [sseStop, setStreaming])
   const responseTextRef = useRef('')
   const responseLangRef = useRef<string>('en')
   const wasVoiceRef = useRef(false)

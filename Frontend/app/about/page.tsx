@@ -8,10 +8,11 @@ export const metadata: Metadata = {
 }
 
 const team = [
-  { name: 'Ahmed Hassan', role: 'CEO & Co-Founder', initials: 'AH' },
-  { name: 'Mariam Youssef', role: 'CTO & Co-Founder', initials: 'MY' },
-  { name: 'Karim Ali', role: 'Head of AI', initials: 'KA' },
-  { name: 'Nour El-Din', role: 'Product Lead', initials: 'NE' },
+  { name: 'Seif Khalled', role: 'CEO & Co-Founder', initials: 'SK' },
+  { name: 'Omar', role: 'CTO & Co-Founder', initials: 'OM' },
+  { name: 'Ziad Shalaby', role: 'Head of AI', initials: 'ZS' },
+  { name: 'Khaled Karam', role: 'Product Lead', initials: 'KK' },
+  { name: 'Hussien', role: 'Lead Developer', initials: 'HU' },
 ]
 
 export default function AboutPage() {
@@ -74,7 +75,7 @@ export default function AboutPage() {
         <div className="max-w-4xl mx-auto px-4 py-16 text-center">
           <h2 className="text-2xl font-bold text-text-primary mb-2">Meet the Team</h2>
           <p className="text-text-muted mb-10">The people behind Deals</p>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
             {team.map((member) => (
               <div key={member.name}>
                 <div className="w-16 h-16 rounded-full bg-primary-500/10 flex items-center justify-center mx-auto mb-3">
