@@ -7,6 +7,7 @@ from app.config import settings
 from app.enums import TaskType
 from app.core.openrouter import OpenRouterChat
 from app.core.cache import llm_response_cache
+from app.core.key_rotator import KeyRotator
 
 logger = logging.getLogger(__name__)
 
@@ -16,84 +17,79 @@ COMPLEX_TASKS = {TaskType.ADVISOR, TaskType.SELLER, TaskType.SEARCH, TaskType.RE
 _CACHEABLE_SIMPLE = {TaskType.ROUTER, TaskType.GUIDE_TOPIC, TaskType.SEARCH_DECISION}
 
 
+def _build_groq_pool(keys: list[str], model: str, temperature: float, streaming: bool, max_tokens: int) -> list[ChatGroq]:
+    """Build a list of ChatGroq instances, one per API key."""
+    pool = []
+    for key in keys:
+        if not key:
+            continue
+        pool.append(ChatGroq(
+            model=model,
+            api_key=key,
+            temperature=temperature,
+            streaming=streaming,
+            max_tokens=max_tokens,
+        ))
+    return pool
+
+
 class MultiLLM:
-    """Multi-provider LLM with task-based routing and automatic fallback.
+    """Multi-provider LLM with task-based routing, round-robin key rotation, and automatic fallback.
 
     - Simple tasks (routing, extraction): cheap/fast Groq model, low tokens, no stream
     - Complex tasks (advisor, seller, analysis): powerful model with streaming, higher tokens
+
+    All available Groq keys are distributed via round-robin rotation so that
+    successive calls hit different keys, avoiding 429 rate limits.
     """
 
     def __init__(self):
-        self._fast_groq: ChatGroq | None = None
-        self._fast_groq_fallback: ChatGroq | None = None
-        self._fast_groq_fallback2: ChatGroq | None = None
-        self._fast_groq_fallback3: ChatGroq | None = None
-        self._powerful_groq: ChatGroq | None = None
+        all_groq_keys = [
+            settings.groq_api_key,
+            settings.groq_api_key_fallback,
+            settings.groq_api_key_fallback2,
+            settings.groq_api_key_fallback3,
+        ]
+
+        fast_model = settings.groq_model
+        powerful_model = settings.groq_model_fallback or settings.groq_model
+
+        # Fast pool: all keys with fast config (for simple tasks)
+        self._fast_pool = _build_groq_pool(
+            all_groq_keys, fast_model,
+            temperature=0, streaming=False, max_tokens=1024,
+        )
+        self._fast_rotator: KeyRotator[ChatGroq] = KeyRotator(self._fast_pool)
+
+        # Powerful pool: all keys with powerful config (for complex tasks)
+        self._powerful_pool = _build_groq_pool(
+            all_groq_keys, powerful_model,
+            temperature=0.3, streaming=True, max_tokens=4096,
+        )
+        self._powerful_rotator: KeyRotator[ChatGroq] = KeyRotator(self._powerful_pool) if self._powerful_pool else None
+
+        # OpenRouter fallback for complex tasks
         self._powerful_openrouter: OpenRouterChat | None = None
 
-    # ── Fast / cheap model for routing & extraction ──
+        logger.info(
+            "MultiLLM initialized: fast pool=%d keys, powerful pool=%d keys",
+            self._fast_rotator.size,
+            self._powerful_rotator.size if self._powerful_rotator else 0,
+        )
+
+    # ── Backward-compatible properties ──
+    # These return the next instance via round-robin so that direct callers
+    # (e.g. chat.py passing llm_fast / llm_stream to config) also benefit.
 
     @property
     def fast(self) -> ChatGroq:
-        if self._fast_groq is None:
-            self._fast_groq = ChatGroq(
-                model=settings.groq_model,
-                api_key=settings.groq_api_key,
-                temperature=0,
-                streaming=False,
-                max_tokens=1024,
-            )
-        return self._fast_groq
-
-    @property
-    def fast_fallback(self) -> ChatGroq | None:
-        if self._fast_groq_fallback is None and settings.groq_api_key_fallback:
-            self._fast_groq_fallback = ChatGroq(
-                model=settings.groq_model_fallback or settings.groq_model,
-                api_key=settings.groq_api_key_fallback,
-                temperature=0,
-                streaming=False,
-                max_tokens=1024,
-            )
-        return self._fast_groq_fallback
-
-    @property
-    def fast_fallback2(self) -> ChatGroq | None:
-        if self._fast_groq_fallback2 is None and settings.groq_api_key_fallback2:
-            self._fast_groq_fallback2 = ChatGroq(
-                model=settings.groq_model_fallback or settings.groq_model,
-                api_key=settings.groq_api_key_fallback2,
-                temperature=0,
-                streaming=False,
-                max_tokens=1024,
-            )
-        return self._fast_groq_fallback2
-
-    @property
-    def fast_fallback3(self) -> ChatGroq | None:
-        if self._fast_groq_fallback3 is None and settings.groq_api_key_fallback3:
-            self._fast_groq_fallback3 = ChatGroq(
-                model=settings.groq_model_fallback or settings.groq_model,
-                api_key=settings.groq_api_key_fallback3,
-                temperature=0,
-                streaming=False,
-                max_tokens=1024,
-            )
-        return self._fast_groq_fallback3
-
-    # ── Powerful model for complex reasoning ──
+        return self._fast_rotator.next()
 
     @property
     def powerful(self) -> ChatGroq | None:
-        if self._powerful_groq is None and settings.groq_api_key_fallback:
-            self._powerful_groq = ChatGroq(
-                model=settings.groq_model_fallback or settings.groq_model,
-                api_key=settings.groq_api_key_fallback,
-                temperature=0.3,
-                streaming=True,
-                max_tokens=4096,
-            )
-        return self._powerful_groq
+        if self._powerful_rotator is None:
+            return None
+        return self._powerful_rotator.next()
 
     @property
     def powerful_alt(self) -> OpenRouterChat | None:
@@ -121,13 +117,6 @@ class MultiLLM:
         messages,
         **kwargs,
     ):
-        llm = self.get_for_task(task_type, streaming=False)
-
-        if task_type in SIMPLE_TASKS:
-            fallbacks = [p for p in (self.fast, self.fast_fallback, self.fast_fallback2, self.fast_fallback3) if p is not None]
-        else:
-            fallbacks = [p for p in (self.powerful, self.powerful_alt, self.fast) if p is not None]
-
         if task_type in _CACHEABLE_SIMPLE:
             prompt_text = "||".join(m.content if hasattr(m, "content") else str(m) for m in messages)
             cache_key = hashlib.sha256(prompt_text.encode("utf-8")).hexdigest()
@@ -136,8 +125,17 @@ class MultiLLM:
                 logger.info("LLM cache hit for '%s'", task_type)
                 return cached
 
+        if task_type in SIMPLE_TASKS:
+            providers = list(self._fast_pool)
+        else:
+            providers = list(self._powerful_pool)
+            if self.powerful_alt:
+                providers.append(self.powerful_alt)
+            if self._fast_pool:
+                providers.append(self._fast_pool[0])
+
         errors = []
-        for i, provider in enumerate(fallbacks):
+        for i, provider in enumerate(providers):
             try:
                 result = await asyncio.wait_for(
                     provider.ainvoke(messages, **kwargs),
@@ -149,13 +147,13 @@ class MultiLLM:
                     llm_response_cache.set(cache_key, result, ttl=120)
                 return result
             except asyncio.TimeoutError:
-                logger.warning("%s (attempt %d/%d) timed out", task_type, i + 1, len(fallbacks))
+                logger.warning("%s (attempt %d/%d) timed out", task_type, i + 1, len(providers))
                 errors.append("timeout")
             except Exception as e:
-                logger.warning("%s (attempt %d/%d) failed: %s", task_type, i + 1, len(fallbacks), str(e)[:200])
+                logger.warning("%s (attempt %d/%d) failed: %s", task_type, i + 1, len(providers), str(e)[:200])
                 errors.append(str(e)[:100])
 
-        logger.error("All %d LLM providers failed for '%s': %s", len(fallbacks), task_type, "; ".join(errors))
+        logger.error("All %d LLM providers failed for '%s': %s", len(providers), task_type, "; ".join(errors))
         raise RuntimeError(f"Service temporarily unavailable. Please try again later.")
 
     # ── Streaming invocation with automatic fallback ──
@@ -166,15 +164,17 @@ class MultiLLM:
         messages,
         **kwargs,
     ):
-        llm = self.get_for_task(task_type, streaming=True)
-
         if task_type in SIMPLE_TASKS:
-            fallbacks = [p for p in (self.fast, self.fast_fallback, self.fast_fallback2, self.fast_fallback3) if p is not None]
+            providers = list(self._fast_pool)
         else:
-            fallbacks = [p for p in (self.powerful, self.powerful_alt, self.fast) if p is not None]
+            providers = list(self._powerful_pool)
+            if self.powerful_alt:
+                providers.append(self.powerful_alt)
+            if self._fast_pool:
+                providers.append(self._fast_pool[0])
 
         errors = []
-        for i, provider in enumerate(fallbacks):
+        for i, provider in enumerate(providers):
             if provider is None:
                 continue
             try:
@@ -183,13 +183,13 @@ class MultiLLM:
                         yield chunk
                 return
             except asyncio.TimeoutError:
-                logger.warning("%s stream (attempt %d/%d) timed out", task_type, i + 1, len(fallbacks))
+                logger.warning("%s stream (attempt %d/%d) timed out", task_type, i + 1, len(providers))
                 errors.append("timeout")
             except Exception as e:
-                logger.warning("%s stream (attempt %d/%d) failed: %s", task_type, i + 1, len(fallbacks), str(e)[:200])
+                logger.warning("%s stream (attempt %d/%d) failed: %s", task_type, i + 1, len(providers), str(e)[:200])
                 errors.append(str(e)[:100])
 
-        logger.error("All %d LLM providers failed for '%s' streaming", len(fallbacks), task_type)
+        logger.error("All %d LLM providers failed for '%s' streaming", len(providers), task_type)
         raise RuntimeError(f"Service temporarily unavailable. Please try again later.")
 
 
